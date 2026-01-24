@@ -1,0 +1,289 @@
+const WORD_LENGTH = 5;
+const MAX_GUESSES = 6;
+
+const WORDS = [
+  "about",
+  "agent",
+  "ahead",
+  "angel",
+  "baker",
+  "basic",
+  "brain",
+  "brave",
+  "bring",
+  "cabin",
+  "cable",
+  "chair",
+  "chart",
+  "chase",
+  "clean",
+  "cider",
+  "crane",
+  "crown",
+  "dance",
+  "dream",
+  "eager",
+  "eagle",
+  "earth",
+  "faith",
+  "flame",
+  "giant",
+  "globe",
+  "grace",
+  "great",
+  "habit",
+  "happy",
+  "heart",
+  "jelly",
+  "juice",
+  "light",
+  "lucky",
+  "magic",
+  "maker",
+  "match",
+  "north",
+  "ocean",
+  "paint",
+  "panel",
+  "party",
+  "piano",
+  "quick",
+  "quiet",
+  "raise",
+  "river",
+  "robot",
+  "scale",
+  "shine",
+  "smile",
+  "solar",
+  "sound",
+  "stone",
+  "storm",
+  "story",
+  "think",
+  "toast",
+  "trail",
+  "trust",
+  "uncle",
+  "vivid",
+  "whale",
+  "world",
+  "youth",
+  "zebra",
+];
+
+const grid = document.getElementById("grid");
+const statusMessage = document.getElementById("status-message");
+const keyboard = document.getElementById("keyboard");
+const newGameButton = document.getElementById("new-game");
+
+let targetWord = "";
+let currentGuess = "";
+let guesses = [];
+let gameOver = false;
+
+const keyboardRows = [
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+  ["enter", "z", "x", "c", "v", "b", "n", "m", "back"],
+];
+
+function pickWord() {
+  const randomIndex = Math.floor(Math.random() * WORDS.length);
+  return WORDS[randomIndex];
+}
+
+function buildGrid() {
+  grid.innerHTML = "";
+  for (let row = 0; row < MAX_GUESSES; row += 1) {
+    for (let col = 0; col < WORD_LENGTH; col += 1) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.row = row;
+      tile.dataset.col = col;
+      grid.appendChild(tile);
+    }
+  }
+}
+
+function buildKeyboard() {
+  keyboard.innerHTML = "";
+  keyboardRows.forEach((row) => {
+    row.forEach((letter) => {
+      const key = document.createElement("button");
+      key.type = "button";
+      key.className = "key";
+      if (letter === "enter" || letter === "back") {
+        key.classList.add("wide");
+      }
+      key.dataset.key = letter;
+      key.textContent = letter === "back" ? "⌫" : letter;
+      key.addEventListener("click", () => handleKey(letter));
+      keyboard.appendChild(key);
+    });
+  });
+}
+
+function setStatus(message, tone = "neutral") {
+  statusMessage.textContent = message;
+  statusMessage.dataset.tone = tone;
+}
+
+function resetGame() {
+  targetWord = pickWord();
+  currentGuess = "";
+  guesses = [];
+  gameOver = false;
+  buildGrid();
+  buildKeyboard();
+  setStatus("Guess the 5-letter word in six tries.");
+}
+
+function handleKey(key) {
+  if (gameOver) {
+    return;
+  }
+
+  if (key === "enter") {
+    submitGuess();
+    return;
+  }
+
+  if (key === "back") {
+    currentGuess = currentGuess.slice(0, -1);
+    updateBoard();
+    return;
+  }
+
+  if (/^[a-z]$/i.test(key) && currentGuess.length < WORD_LENGTH) {
+    currentGuess += key.toLowerCase();
+    updateBoard();
+  }
+}
+
+function updateBoard() {
+  const rowIndex = guesses.length;
+  for (let col = 0; col < WORD_LENGTH; col += 1) {
+    const tile = grid.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
+    if (!tile) {
+      continue;
+    }
+    const letter = currentGuess[col] || "";
+    tile.textContent = letter;
+    tile.classList.toggle("filled", Boolean(letter));
+  }
+}
+
+function scoreGuess(guess, target) {
+  const result = Array(WORD_LENGTH).fill("absent");
+  const remaining = target.split("");
+
+  for (let i = 0; i < WORD_LENGTH; i += 1) {
+    if (guess[i] === target[i]) {
+      result[i] = "correct";
+      remaining[i] = null;
+    }
+  }
+
+  for (let i = 0; i < WORD_LENGTH; i += 1) {
+    if (result[i] !== "absent") {
+      continue;
+    }
+    const index = remaining.indexOf(guess[i]);
+    if (index !== -1) {
+      result[i] = "present";
+      remaining[index] = null;
+    }
+  }
+
+  return result;
+}
+
+function paintGuess(guess, result, rowIndex) {
+  for (let col = 0; col < WORD_LENGTH; col += 1) {
+    const tile = grid.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
+    tile.textContent = guess[col];
+    tile.classList.add(result[col]);
+  }
+}
+
+function updateKeyboard(guess, result) {
+  guess.split("").forEach((letter, index) => {
+    const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
+    if (!key) {
+      return;
+    }
+    const currentClass = key.classList.contains("correct")
+      ? "correct"
+      : key.classList.contains("present")
+      ? "present"
+      : key.classList.contains("absent")
+      ? "absent"
+      : "";
+
+    const nextClass = result[index];
+    if (currentClass === "correct") {
+      return;
+    }
+    if (currentClass === "present" && nextClass === "absent") {
+      return;
+    }
+    key.classList.remove("present", "absent");
+    if (nextClass !== "absent" || currentClass === "") {
+      key.classList.add(nextClass);
+    }
+  });
+}
+
+function submitGuess() {
+  if (currentGuess.length < WORD_LENGTH) {
+    setStatus("Not enough letters. Keep typing.", "warning");
+    return;
+  }
+
+  if (!WORDS.includes(currentGuess)) {
+    setStatus("Word not in list. Try another one.", "warning");
+    return;
+  }
+
+  const result = scoreGuess(currentGuess, targetWord);
+  paintGuess(currentGuess, result, guesses.length);
+  updateKeyboard(currentGuess, result);
+  guesses.push(currentGuess);
+
+  if (currentGuess === targetWord) {
+    setStatus("Nice! You solved it.", "success");
+    gameOver = true;
+    return;
+  }
+
+  if (guesses.length >= MAX_GUESSES) {
+    setStatus(`Out of guesses! The word was ${targetWord.toUpperCase()}.`, "error");
+    gameOver = true;
+    return;
+  }
+
+  currentGuess = "";
+  setStatus("Keep going!", "neutral");
+  updateBoard();
+}
+
+function handlePhysicalKey(event) {
+  const key = event.key.toLowerCase();
+  if (key === "enter") {
+    handleKey("enter");
+    return;
+  }
+  if (key === "backspace") {
+    handleKey("back");
+    return;
+  }
+  if (/^[a-z]$/.test(key)) {
+    handleKey(key);
+  }
+}
+
+newGameButton.addEventListener("click", resetGame);
+document.addEventListener("keydown", handlePhysicalKey);
+
+resetGame();
