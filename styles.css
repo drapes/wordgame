@@ -57,6 +57,31 @@ body {
   color: var(--muted);
 }
 
+.mode-toggle {
+  margin-top: 10px;
+  display: inline-flex;
+  gap: 8px;
+  background: #eef0f4;
+  padding: 6px;
+  border-radius: 999px;
+}
+
+.mode-toggle__button {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mode-toggle__button.is-active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
 .status {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -203,10 +228,25 @@ body {
   font-size: 1.1rem;
 }
 
+.stats-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stats-section__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .stats-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  margin-bottom: 12px;
 }
 
 .stats-card {

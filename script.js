@@ -81,6 +81,8 @@ const statsPanel = document.getElementById("stats-panel");
 const statsSummary = document.getElementById("stats-summary");
 const statsDistribution = document.getElementById("stats-distribution");
 const statsCloseButton = document.getElementById("stats-close");
+const modeDailyButton = document.getElementById("mode-daily");
+const modeInfiniteButton = document.getElementById("mode-infinite");
 
 const STATS_COOKIE = "wordgameStats";
 
@@ -91,10 +93,20 @@ let currentGuess = "";
 let guesses = [];
 let gameOver = false;
 let hasRecordedResult = false;
+let currentMode = "infinite";
 let stats = {
-  gamesPlayed: 0,
-  wins: 0,
-  distribution: Array(MAX_GUESSES).fill(0),
+  modes: {
+    daily: {
+      gamesPlayed: 0,
+      wins: 0,
+      distribution: Array(MAX_GUESSES).fill(0),
+    },
+    infinite: {
+      gamesPlayed: 0,
+      wins: 0,
+      distribution: Array(MAX_GUESSES).fill(0),
+    },
+  },
 };
 
 const keyboardRows = [
@@ -103,8 +115,14 @@ const keyboardRows = [
   ["enter", "z", "x", "c", "v", "b", "n", "m", "back"],
 ];
 
-function pickWord() {
-  const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
+function pickWord(wordBank, seed) {
+  if (wordBank.length === 0) {
+    return "";
+  }
+  if (typeof seed === "number") {
+    const index = Math.abs(seed) % wordBank.length;
+    return wordBank[index];
+  }
   const randomIndex = Math.floor(Math.random() * wordBank.length);
   return wordBank[randomIndex];
 }
@@ -154,6 +172,35 @@ function setStatus(message, tone = "neutral") {
   statusMessage.dataset.tone = tone;
 }
 
+function createEmptyStats() {
+  return {
+    gamesPlayed: 0,
+    wins: 0,
+    distribution: Array(MAX_GUESSES).fill(0),
+  };
+}
+
+function createStatsStore() {
+  return {
+    modes: {
+      daily: createEmptyStats(),
+      infinite: createEmptyStats(),
+    },
+  };
+}
+
+function getCombinedStats() {
+  const combined = createEmptyStats();
+  Object.values(stats.modes).forEach((modeStats) => {
+    combined.gamesPlayed += modeStats.gamesPlayed;
+    combined.wins += modeStats.wins;
+    combined.distribution = combined.distribution.map(
+      (value, index) => value + (modeStats.distribution[index] || 0),
+    );
+  });
+  return combined;
+}
+
 function readCookie(name) {
   const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
   const match = cookies.find((cookie) => cookie.startsWith(`${name}=`));
@@ -175,28 +222,47 @@ function loadStats() {
   }
   try {
     const parsed = JSON.parse(stored);
-    if (
+    if (parsed?.modes?.daily && parsed?.modes?.infinite) {
+      stats = {
+        modes: {
+          daily: {
+            gamesPlayed: parsed.modes.daily.gamesPlayed || 0,
+            wins: parsed.modes.daily.wins || 0,
+            distribution: Array.isArray(parsed.modes.daily.distribution)
+              ? parsed.modes.daily.distribution.slice(0, MAX_GUESSES)
+              : Array(MAX_GUESSES).fill(0),
+          },
+          infinite: {
+            gamesPlayed: parsed.modes.infinite.gamesPlayed || 0,
+            wins: parsed.modes.infinite.wins || 0,
+            distribution: Array.isArray(parsed.modes.infinite.distribution)
+              ? parsed.modes.infinite.distribution.slice(0, MAX_GUESSES)
+              : Array(MAX_GUESSES).fill(0),
+          },
+        },
+      };
+    } else if (
       typeof parsed.gamesPlayed === "number" &&
       typeof parsed.wins === "number" &&
       Array.isArray(parsed.distribution)
     ) {
-      stats = {
+      stats = createStatsStore();
+      stats.modes.infinite = {
         gamesPlayed: parsed.gamesPlayed,
         wins: parsed.wins,
         distribution: parsed.distribution.slice(0, MAX_GUESSES),
       };
-      if (stats.distribution.length < MAX_GUESSES) {
-        stats.distribution = stats.distribution.concat(
-          Array(MAX_GUESSES - stats.distribution.length).fill(0),
+    }
+
+    Object.values(stats.modes).forEach((modeStats) => {
+      if (modeStats.distribution.length < MAX_GUESSES) {
+        modeStats.distribution = modeStats.distribution.concat(
+          Array(MAX_GUESSES - modeStats.distribution.length).fill(0),
         );
       }
-    }
+    });
   } catch (error) {
-    stats = {
-      gamesPlayed: 0,
-      wins: 0,
-      distribution: Array(MAX_GUESSES).fill(0),
-    };
+    stats = createStatsStore();
   }
 }
 
@@ -204,12 +270,19 @@ function saveStats() {
   writeCookie(STATS_COOKIE, JSON.stringify(stats));
 }
 
-function updateStatsPanel() {
-  const winRate = stats.gamesPlayed === 0 ? 0 : Math.round((stats.wins / stats.gamesPlayed) * 100);
-  statsSummary.innerHTML = "";
+function buildStatsSection(title, data) {
+  const section = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  heading.className = "stats-section__title";
+  section.appendChild(heading);
+
+  const winRate = data.gamesPlayed === 0 ? 0 : Math.round((data.wins / data.gamesPlayed) * 100);
+  const summary = document.createElement("div");
+  summary.className = "stats-summary";
   const summaryItems = [
-    { label: "Played", value: stats.gamesPlayed },
-    { label: "Wins", value: stats.wins },
+    { label: "Played", value: data.gamesPlayed },
+    { label: "Wins", value: data.wins },
     { label: "Win rate", value: `${winRate}%` },
   ];
   summaryItems.forEach((item) => {
@@ -222,12 +295,14 @@ function updateStatsPanel() {
     value.className = "stats-card__value";
     value.textContent = item.value;
     card.append(label, value);
-    statsSummary.appendChild(card);
+    summary.appendChild(card);
   });
+  section.appendChild(summary);
 
-  statsDistribution.innerHTML = "";
-  const maxCount = Math.max(1, ...stats.distribution);
-  stats.distribution.forEach((count, index) => {
+  const distribution = document.createElement("div");
+  distribution.className = "stats-distribution";
+  const maxCount = Math.max(1, ...data.distribution);
+  data.distribution.forEach((count, index) => {
     const row = document.createElement("div");
     row.className = "stats-row";
     const label = document.createElement("span");
@@ -241,8 +316,54 @@ function updateStatsPanel() {
     const value = document.createElement("span");
     value.textContent = count;
     row.append(label, bar, value);
-    statsDistribution.appendChild(row);
+    distribution.appendChild(row);
   });
+  section.appendChild(distribution);
+  return section;
+}
+
+function updateStatsPanel() {
+  statsSummary.innerHTML = "";
+  statsDistribution.innerHTML = "";
+  const combinedStats = getCombinedStats();
+  statsSummary.appendChild(buildStatsSection("Daily mode", stats.modes.daily));
+  statsSummary.appendChild(buildStatsSection("Infinite mode", stats.modes.infinite));
+  statsSummary.appendChild(buildStatsSection("All modes", combinedStats));
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  modeDailyButton.classList.toggle("is-active", mode === "daily");
+  modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  void resetGame();
+}
+
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) % 2147483647;
+  }
+  return hash;
+}
+
+async function getServerDateKey() {
+  try {
+    const response = await fetch(window.location.href, { method: "HEAD", cache: "no-store" });
+    const serverDate = response.headers.get("date");
+    if (serverDate) {
+      return new Date(serverDate).toISOString().slice(0, 10);
+    }
+  } catch (error) {
+    // fall back to local time
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function getDailyWord() {
+  const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
+  const dateKey = await getServerDateKey();
+  const seed = hashString(dateKey);
+  return pickWord(wordBank, seed);
 }
 
 function openStatsPanel() {
@@ -261,11 +382,12 @@ function recordGameResult(won, guessCount) {
   if (hasRecordedResult) {
     return;
   }
-  stats.gamesPlayed += 1;
+  const modeStats = stats.modes[currentMode] || stats.modes.infinite;
+  modeStats.gamesPlayed += 1;
   if (won) {
-    stats.wins += 1;
+    modeStats.wins += 1;
     if (guessCount >= 1 && guessCount <= MAX_GUESSES) {
-      stats.distribution[guessCount - 1] += 1;
+      modeStats.distribution[guessCount - 1] += 1;
     }
   }
   saveStats();
@@ -273,8 +395,13 @@ function recordGameResult(won, guessCount) {
   hasRecordedResult = true;
 }
 
-function resetGame() {
-  targetWord = pickWord();
+async function resetGame() {
+  if (currentMode === "daily") {
+    targetWord = await getDailyWord();
+  } else {
+    const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
+    targetWord = pickWord(wordBank);
+  }
   currentGuess = "";
   guesses = [];
   gameOver = false;
@@ -474,8 +601,16 @@ function handlePhysicalKey(event) {
 
 statsButton.addEventListener("click", openStatsPanel);
 statsCloseButton.addEventListener("click", closeStatsPanel);
+modeDailyButton.addEventListener("click", () => {
+  setMode("daily");
+  modeDailyButton.blur();
+});
+modeInfiniteButton.addEventListener("click", () => {
+  setMode("infinite");
+  modeInfiniteButton.blur();
+});
 newGameButton.addEventListener("click", () => {
-  resetGame();
+  void resetGame();
   window.scrollTo({ top: 0, behavior: "smooth" });
   newGameButton.blur();
 });
@@ -484,7 +619,7 @@ document.addEventListener("keydown", handlePhysicalKey);
 loadStats();
 setStatus("Loading word lists...");
 loadWordLists().then((loaded) => {
-  resetGame();
+  setMode(currentMode);
   if (!loaded) {
     setStatus("Using the built-in word list. (Word list download failed.)", "warning");
   }
