@@ -127,6 +127,11 @@ body {
   min-width: 64px;
 }
 
+.key--enter {
+  min-width: 48px;
+  padding: 10px 8px;
+}
+
 .key.correct {
   background: var(--green);
   color: #fff;
@@ -176,5 +181,9 @@ body {
 
   .key.wide {
     min-width: 56px;
+  }
+
+  .key--enter {
+    min-width: 42px;
   }
 }

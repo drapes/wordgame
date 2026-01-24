@@ -121,7 +121,10 @@ function buildKeyboard() {
       const key = document.createElement("button");
       key.type = "button";
       key.className = "key";
-      if (letter === "enter" || letter === "back") {
+      if (letter === "enter") {
+        key.classList.add("key--enter");
+      }
+      if (letter === "back") {
         key.classList.add("wide");
       }
       key.dataset.key = letter;
