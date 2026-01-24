@@ -77,7 +77,8 @@ const statusMessage = document.getElementById("status-message");
 const keyboard = document.getElementById("keyboard");
 const newGameButton = document.getElementById("new-game");
 
-let WORDS = [];
+let ANSWER_WORDS = [];
+let GUESS_WORDS = [];
 let targetWord = "";
 let currentGuess = "";
 let guesses = [];
@@ -90,7 +91,7 @@ const keyboardRows = [
 ];
 
 function pickWord() {
-  const wordBank = WORDS.length > 0 ? WORDS : DEFAULT_WORDS;
+  const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
   const randomIndex = Math.floor(Math.random() * wordBank.length);
   return wordBank[randomIndex];
 }
@@ -141,23 +142,37 @@ function resetGame() {
   setStatus("Guess the 5-letter word in six tries.");
 }
 
-async function loadWordList() {
+async function loadWordLists() {
   try {
-    const response = await fetch("words.txt");
-    if (!response.ok) {
-      throw new Error("Failed to load word list.");
+    const [answerResponse, guessResponse] = await Promise.all([
+      fetch("ans.txt"),
+      fetch("guess.txt"),
+    ]);
+    if (!answerResponse.ok || !guessResponse.ok) {
+      throw new Error("Failed to load word lists.");
     }
-    const text = await response.text();
-    WORDS = text
+    const [answerText, guessText] = await Promise.all([
+      answerResponse.text(),
+      guessResponse.text(),
+    ]);
+    ANSWER_WORDS = answerText
       .split(/\r?\n/)
       .map((word) => word.trim().toLowerCase())
       .filter((word) => word.length === WORD_LENGTH && /^[a-z]+$/.test(word));
-    if (WORDS.length === 0) {
-      WORDS = [...DEFAULT_WORDS];
+    GUESS_WORDS = guessText
+      .split(/\r?\n/)
+      .map((word) => word.trim().toLowerCase())
+      .filter((word) => word.length === WORD_LENGTH && /^[a-z]+$/.test(word));
+    if (ANSWER_WORDS.length === 0) {
+      ANSWER_WORDS = [...DEFAULT_WORDS];
+    }
+    if (GUESS_WORDS.length === 0) {
+      GUESS_WORDS = [...ANSWER_WORDS];
     }
     return true;
   } catch (error) {
-    WORDS = [...DEFAULT_WORDS];
+    ANSWER_WORDS = [...DEFAULT_WORDS];
+    GUESS_WORDS = [...DEFAULT_WORDS];
     return false;
   }
 }
@@ -264,8 +279,8 @@ function submitGuess() {
     return;
   }
 
-  const wordBank = WORDS.length > 0 ? WORDS : DEFAULT_WORDS;
-  if (!wordBank.includes(currentGuess)) {
+  const guessBank = GUESS_WORDS.length > 0 ? GUESS_WORDS : DEFAULT_WORDS;
+  if (!guessBank.includes(currentGuess)) {
     setStatus("Word not in list. Try another one.", "warning");
     return;
   }
@@ -310,8 +325,8 @@ function handlePhysicalKey(event) {
 newGameButton.addEventListener("click", resetGame);
 document.addEventListener("keydown", handlePhysicalKey);
 
-setStatus("Loading word list...");
-loadWordList().then((loaded) => {
+setStatus("Loading word lists...");
+loadWordLists().then((loaded) => {
   resetGame();
   if (!loaded) {
     setStatus("Using the built-in word list. (Word list download failed.)", "warning");
