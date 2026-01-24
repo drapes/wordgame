@@ -455,6 +455,9 @@ function submitGuess() {
 function handlePhysicalKey(event) {
   const key = event.key.toLowerCase();
   if (key === "enter") {
+    if (document.activeElement === newGameButton) {
+      newGameButton.blur();
+    }
     handleKey("enter");
     return;
   }
@@ -469,7 +472,10 @@ function handlePhysicalKey(event) {
 
 statsButton.addEventListener("click", openStatsPanel);
 statsCloseButton.addEventListener("click", closeStatsPanel);
-newGameButton.addEventListener("click", resetGame);
+newGameButton.addEventListener("click", () => {
+  resetGame();
+  newGameButton.blur();
+});
 document.addEventListener("keydown", handlePhysicalKey);
 
 loadStats();
