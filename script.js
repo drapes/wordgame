@@ -89,6 +89,7 @@ const modeInfiniteButton = document.getElementById("mode-infinite");
 
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
+const INFINITE_COOKIE = "wordgameInfinite";
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
@@ -106,11 +107,17 @@ let stats = {
       gamesPlayed: 0,
       wins: 0,
       distribution: Array(MAX_GUESSES).fill(0),
+      currentStreak: 0,
+      maxStreak: 0,
+      lastResultDate: null,
+      lastResultWin: false,
     },
     infinite: {
       gamesPlayed: 0,
       wins: 0,
       distribution: Array(MAX_GUESSES).fill(0),
+      currentStreak: 0,
+      maxStreak: 0,
     },
   },
 };
@@ -189,8 +196,18 @@ function createEmptyStats() {
 function createStatsStore() {
   return {
     modes: {
-      daily: createEmptyStats(),
-      infinite: createEmptyStats(),
+      daily: {
+        ...createEmptyStats(),
+        currentStreak: 0,
+        maxStreak: 0,
+        lastResultDate: null,
+        lastResultWin: false,
+      },
+      infinite: {
+        ...createEmptyStats(),
+        currentStreak: 0,
+        maxStreak: 0,
+      },
     },
   };
 }
@@ -219,6 +236,22 @@ function readCookie(name) {
 function writeCookie(name, value, days = 365) {
   const expires = new Date(Date.now() + days * 86400000).toUTCString();
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function saveInfiniteState(payload) {
+  writeCookie(INFINITE_COOKIE, JSON.stringify(payload), 7);
+}
+
+function loadInfiniteState() {
+  const stored = readCookie(INFINITE_COOKIE);
+  if (!stored) {
+    return null;
+  }
+  try {
+    return JSON.parse(stored);
+  } catch (error) {
+    return null;
+  }
 }
 
 function saveDailyState(payload) {
@@ -253,6 +286,10 @@ function loadStats() {
             distribution: Array.isArray(parsed.modes.daily.distribution)
               ? parsed.modes.daily.distribution.slice(0, MAX_GUESSES)
               : Array(MAX_GUESSES).fill(0),
+            currentStreak: parsed.modes.daily.currentStreak || 0,
+            maxStreak: parsed.modes.daily.maxStreak || 0,
+            lastResultDate: parsed.modes.daily.lastResultDate || null,
+            lastResultWin: parsed.modes.daily.lastResultWin || false,
           },
           infinite: {
             gamesPlayed: parsed.modes.infinite.gamesPlayed || 0,
@@ -260,6 +297,8 @@ function loadStats() {
             distribution: Array.isArray(parsed.modes.infinite.distribution)
               ? parsed.modes.infinite.distribution.slice(0, MAX_GUESSES)
               : Array(MAX_GUESSES).fill(0),
+            currentStreak: parsed.modes.infinite.currentStreak || 0,
+            maxStreak: parsed.modes.infinite.maxStreak || 0,
           },
         },
       };
@@ -273,6 +312,8 @@ function loadStats() {
         gamesPlayed: parsed.gamesPlayed,
         wins: parsed.wins,
         distribution: parsed.distribution.slice(0, MAX_GUESSES),
+        currentStreak: 0,
+        maxStreak: 0,
       };
     }
 
@@ -320,6 +361,12 @@ function updateStatsPanel() {
     { label: "Wins", value: selectedStats.wins },
     { label: "Win rate", value: `${winRate}%` },
   ];
+  if (statsMode !== "all") {
+    summaryItems.push(
+      { label: "Streak", value: selectedStats.currentStreak },
+      { label: "Max streak", value: selectedStats.maxStreak },
+    );
+  }
   summaryItems.forEach((item) => {
     const card = document.createElement("div");
     card.className = "stats-card";
@@ -375,6 +422,36 @@ function hashString(value) {
     hash = (hash * 31 + value.charCodeAt(i)) % 2147483647;
   }
   return hash;
+}
+
+function daysBetween(a, b) {
+  const start = new Date(`${a}T00:00:00Z`);
+  const end = new Date(`${b}T00:00:00Z`);
+  const diffMs = end - start;
+  return Math.floor(diffMs / 86400000);
+}
+
+function updateDailyStreaks(dateKey, won) {
+  const dailyStats = stats.modes.daily;
+  if (dailyStats.lastResultDate) {
+    const gap = daysBetween(dailyStats.lastResultDate, dateKey);
+    if (gap > 1) {
+      dailyStats.currentStreak = 0;
+    }
+  }
+  if (won) {
+    if (dailyStats.lastResultDate) {
+      const gap = daysBetween(dailyStats.lastResultDate, dateKey);
+      dailyStats.currentStreak = gap === 1 ? dailyStats.currentStreak + 1 : 1;
+    } else {
+      dailyStats.currentStreak = 1;
+    }
+    dailyStats.maxStreak = Math.max(dailyStats.maxStreak, dailyStats.currentStreak);
+  } else {
+    dailyStats.currentStreak = 0;
+  }
+  dailyStats.lastResultDate = dateKey;
+  dailyStats.lastResultWin = won;
 }
 
 async function getServerDateKey() {
@@ -433,12 +510,24 @@ function recordGameResult(won, guessCount) {
       modeStats.distribution[guessCount - 1] += 1;
     }
   }
+  if (currentMode === "daily" && currentDailyKey) {
+    updateDailyStreaks(currentDailyKey, won);
+  } else if (currentMode === "infinite") {
+    modeStats.currentStreak = won ? modeStats.currentStreak + 1 : 0;
+    modeStats.maxStreak = Math.max(modeStats.maxStreak, modeStats.currentStreak);
+  }
   saveStats();
   if (currentMode === "daily" && currentDailyKey) {
     saveDailyState({
       dateKey: currentDailyKey,
       completed: true,
       guesses: [...guesses],
+    });
+  } else if (currentMode === "infinite") {
+    saveInfiniteState({
+      targetWord,
+      guesses: [...guesses],
+      completed: true,
     });
   }
   updateStatsPanel();
@@ -451,7 +540,31 @@ async function resetGame() {
     const dailyInfo = await getDailyWord();
     targetWord = dailyInfo.word;
     currentDailyKey = dailyInfo.dateKey;
+    const dailyStats = stats.modes.daily;
+    if (dailyStats.lastResultDate) {
+      const gap = daysBetween(dailyStats.lastResultDate, currentDailyKey);
+      if (gap > 1) {
+        dailyStats.currentStreak = 0;
+        dailyStats.lastResultDate = currentDailyKey;
+        dailyStats.lastResultWin = false;
+        saveStats();
+      }
+    }
   } else {
+    const saved = loadInfiniteState();
+    if (saved?.targetWord && Array.isArray(saved.guesses) && !saved.completed) {
+      targetWord = saved.targetWord;
+      guesses = [];
+      currentGuess = "";
+      gameOver = false;
+      hasRecordedResult = false;
+      buildGrid();
+      buildKeyboard();
+      renderSavedBoard(saved.guesses);
+      updateNextWordButton();
+      setStatus("Keep going!", "neutral");
+      return;
+    }
     const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
     targetWord = pickWord(wordBank);
     currentDailyKey = null;
@@ -477,6 +590,13 @@ async function resetGame() {
   buildKeyboard();
   setStatus("Guess the 5-letter word in six tries.");
   updateNextWordButton();
+  if (currentMode === "infinite") {
+    saveInfiniteState({
+      targetWord,
+      guesses: [],
+      completed: false,
+    });
+  }
 }
 
 async function loadWordLists() {
@@ -629,6 +749,19 @@ function submitGuess() {
   paintGuess(currentGuess, result, guesses.length);
   updateKeyboard(currentGuess, result);
   guesses.push(currentGuess);
+  if (currentMode === "daily" && currentDailyKey) {
+    saveDailyState({
+      dateKey: currentDailyKey,
+      completed: false,
+      guesses: [...guesses],
+    });
+  } else if (currentMode === "infinite") {
+    saveInfiniteState({
+      targetWord,
+      guesses: [...guesses],
+      completed: false,
+    });
+  }
 
   if (currentGuess === targetWord) {
     setStatus("Nice! You solved it.", "success");
