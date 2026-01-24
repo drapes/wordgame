@@ -352,17 +352,20 @@ function updateStatsPanel() {
   });
 }
 
+function updateNextWordButton() {
+  if (currentMode !== "infinite") {
+    newGameButton.style.display = "none";
+    return;
+  }
+  newGameButton.textContent = "Next word";
+  newGameButton.style.display = gameOver ? "inline-flex" : "none";
+}
+
 function setMode(mode) {
   currentMode = mode;
   modeDailyButton.classList.toggle("is-active", mode === "daily");
   modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
-  if (mode === "daily") {
-    newGameButton.textContent = "Next word";
-    newGameButton.style.display = "none";
-  } else {
-    newGameButton.textContent = "Next word";
-    newGameButton.style.display = "inline-flex";
-  }
+  updateNextWordButton();
   void resetGame();
 }
 
@@ -439,6 +442,7 @@ function recordGameResult(won, guessCount) {
     });
   }
   updateStatsPanel();
+  updateNextWordButton();
   hasRecordedResult = true;
 }
 
@@ -456,6 +460,7 @@ async function resetGame() {
   guesses = [];
   gameOver = false;
   hasRecordedResult = false;
+  updateNextWordButton();
 
   if (currentMode === "daily") {
     const saved = loadDailyState();
@@ -471,6 +476,7 @@ async function resetGame() {
   buildGrid();
   buildKeyboard();
   setStatus("Guess the 5-letter word in six tries.");
+  updateNextWordButton();
 }
 
 async function loadWordLists() {
