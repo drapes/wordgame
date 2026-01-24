@@ -81,6 +81,9 @@ const statsPanel = document.getElementById("stats-panel");
 const statsSummary = document.getElementById("stats-summary");
 const statsDistribution = document.getElementById("stats-distribution");
 const statsCloseButton = document.getElementById("stats-close");
+const statsModeDailyButton = document.getElementById("stats-mode-daily");
+const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
+const statsModeAllButton = document.getElementById("stats-mode-all");
 const modeDailyButton = document.getElementById("mode-daily");
 const modeInfiniteButton = document.getElementById("mode-infinite");
 
@@ -95,6 +98,7 @@ let guesses = [];
 let gameOver = false;
 let hasRecordedResult = false;
 let currentMode = "infinite";
+let statsMode = "all";
 let currentDailyKey = null;
 let stats = {
   modes: {
@@ -288,19 +292,32 @@ function saveStats() {
   writeCookie(STATS_COOKIE, JSON.stringify(stats));
 }
 
-function buildStatsSection(title, data) {
-  const section = document.createElement("div");
-  const heading = document.createElement("h3");
-  heading.textContent = title;
-  heading.className = "stats-section__title";
-  section.appendChild(heading);
+function setStatsMode(mode) {
+  statsMode = mode;
+  statsModeDailyButton.classList.toggle("is-active", mode === "daily");
+  statsModeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  statsModeAllButton.classList.toggle("is-active", mode === "all");
+  updateStatsPanel();
+}
 
-  const winRate = data.gamesPlayed === 0 ? 0 : Math.round((data.wins / data.gamesPlayed) * 100);
-  const summary = document.createElement("div");
-  summary.className = "stats-summary";
+function updateStatsPanel() {
+  const combinedStats = getCombinedStats();
+  const selectedStats =
+    statsMode === "daily"
+      ? stats.modes.daily
+      : statsMode === "infinite"
+      ? stats.modes.infinite
+      : combinedStats;
+  statsSummary.innerHTML = "";
+  statsDistribution.innerHTML = "";
+
+  const winRate =
+    selectedStats.gamesPlayed === 0
+      ? 0
+      : Math.round((selectedStats.wins / selectedStats.gamesPlayed) * 100);
   const summaryItems = [
-    { label: "Played", value: data.gamesPlayed },
-    { label: "Wins", value: data.wins },
+    { label: "Played", value: selectedStats.gamesPlayed },
+    { label: "Wins", value: selectedStats.wins },
     { label: "Win rate", value: `${winRate}%` },
   ];
   summaryItems.forEach((item) => {
@@ -313,14 +330,11 @@ function buildStatsSection(title, data) {
     value.className = "stats-card__value";
     value.textContent = item.value;
     card.append(label, value);
-    summary.appendChild(card);
+    statsSummary.appendChild(card);
   });
-  section.appendChild(summary);
 
-  const distribution = document.createElement("div");
-  distribution.className = "stats-distribution";
-  const maxCount = Math.max(1, ...data.distribution);
-  data.distribution.forEach((count, index) => {
+  const maxCount = Math.max(1, ...selectedStats.distribution);
+  selectedStats.distribution.forEach((count, index) => {
     const row = document.createElement("div");
     row.className = "stats-row";
     const label = document.createElement("span");
@@ -334,19 +348,8 @@ function buildStatsSection(title, data) {
     const value = document.createElement("span");
     value.textContent = count;
     row.append(label, bar, value);
-    distribution.appendChild(row);
+    statsDistribution.appendChild(row);
   });
-  section.appendChild(distribution);
-  return section;
-}
-
-function updateStatsPanel() {
-  statsSummary.innerHTML = "";
-  statsDistribution.innerHTML = "";
-  const combinedStats = getCombinedStats();
-  statsSummary.appendChild(buildStatsSection("Daily mode", stats.modes.daily));
-  statsSummary.appendChild(buildStatsSection("Infinite mode", stats.modes.infinite));
-  statsSummary.appendChild(buildStatsSection("All modes", combinedStats));
 }
 
 function setMode(mode) {
@@ -653,6 +656,18 @@ function handlePhysicalKey(event) {
 
 statsButton.addEventListener("click", openStatsPanel);
 statsCloseButton.addEventListener("click", closeStatsPanel);
+statsModeDailyButton.addEventListener("click", () => {
+  setStatsMode("daily");
+  statsModeDailyButton.blur();
+});
+statsModeInfiniteButton.addEventListener("click", () => {
+  setStatsMode("infinite");
+  statsModeInfiniteButton.blur();
+});
+statsModeAllButton.addEventListener("click", () => {
+  setStatsMode("all");
+  statsModeAllButton.blur();
+});
 modeDailyButton.addEventListener("click", () => {
   setMode("daily");
   modeDailyButton.blur();
@@ -669,6 +684,7 @@ newGameButton.addEventListener("click", () => {
 document.addEventListener("keydown", handlePhysicalKey);
 
 loadStats();
+setStatsMode(statsMode);
 setStatus("Loading word lists...");
 loadWordLists().then((loaded) => {
   setMode(currentMode);

@@ -44,6 +44,22 @@
           <h2>Statistics</h2>
           <button class="stats-close" type="button" id="stats-close" aria-label="Close stats">✕</button>
         </div>
+        <div class="stats-toggle" role="group" aria-label="Stats mode">
+          <button class="stats-toggle__button" type="button" data-stats-mode="daily" id="stats-mode-daily">
+            Daily
+          </button>
+          <button
+            class="stats-toggle__button"
+            type="button"
+            data-stats-mode="infinite"
+            id="stats-mode-infinite"
+          >
+            ∞
+          </button>
+          <button class="stats-toggle__button" type="button" data-stats-mode="all" id="stats-mode-all">
+            All
+          </button>
+        </div>
         <div class="stats-sections" id="stats-summary"></div>
         <div class="stats-distribution" id="stats-distribution"></div>
       </section>
