@@ -85,6 +85,7 @@ const modeDailyButton = document.getElementById("mode-daily");
 const modeInfiniteButton = document.getElementById("mode-infinite");
 
 const STATS_COOKIE = "wordgameStats";
+const DAILY_COOKIE = "wordgameDaily";
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
@@ -94,6 +95,7 @@ let guesses = [];
 let gameOver = false;
 let hasRecordedResult = false;
 let currentMode = "infinite";
+let currentDailyKey = null;
 let stats = {
   modes: {
     daily: {
@@ -213,6 +215,22 @@ function readCookie(name) {
 function writeCookie(name, value, days = 365) {
   const expires = new Date(Date.now() + days * 86400000).toUTCString();
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function saveDailyState(payload) {
+  writeCookie(DAILY_COOKIE, JSON.stringify(payload), 7);
+}
+
+function loadDailyState() {
+  const stored = readCookie(DAILY_COOKIE);
+  if (!stored) {
+    return null;
+  }
+  try {
+    return JSON.parse(stored);
+  } catch (error) {
+    return null;
+  }
 }
 
 function loadStats() {
@@ -363,7 +381,19 @@ async function getDailyWord() {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
   const dateKey = await getServerDateKey();
   const seed = hashString(dateKey);
-  return pickWord(wordBank, seed);
+  return { word: pickWord(wordBank, seed), dateKey };
+}
+
+function renderSavedBoard(savedGuesses) {
+  buildGrid();
+  buildKeyboard();
+  guesses = [];
+  savedGuesses.forEach((guess, index) => {
+    const result = scoreGuess(guess, targetWord);
+    paintGuess(guess, result, index);
+    updateKeyboard(guess, result);
+    guesses.push(guess);
+  });
 }
 
 function openStatsPanel() {
@@ -391,21 +421,43 @@ function recordGameResult(won, guessCount) {
     }
   }
   saveStats();
+  if (currentMode === "daily" && currentDailyKey) {
+    saveDailyState({
+      dateKey: currentDailyKey,
+      completed: true,
+      guesses: [...guesses],
+    });
+  }
   updateStatsPanel();
   hasRecordedResult = true;
 }
 
 async function resetGame() {
   if (currentMode === "daily") {
-    targetWord = await getDailyWord();
+    const dailyInfo = await getDailyWord();
+    targetWord = dailyInfo.word;
+    currentDailyKey = dailyInfo.dateKey;
   } else {
     const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
     targetWord = pickWord(wordBank);
+    currentDailyKey = null;
   }
   currentGuess = "";
   guesses = [];
   gameOver = false;
   hasRecordedResult = false;
+
+  if (currentMode === "daily") {
+    const saved = loadDailyState();
+    if (saved?.dateKey === currentDailyKey && saved?.completed && Array.isArray(saved.guesses)) {
+      renderSavedBoard(saved.guesses);
+      gameOver = true;
+      hasRecordedResult = true;
+      setStatus("Daily complete. Try infinite mode or come back tomorrow.", "warning");
+      return;
+    }
+  }
+
   buildGrid();
   buildKeyboard();
   setStatus("Guess the 5-letter word in six tries.");
@@ -621,6 +673,8 @@ setStatus("Loading word lists...");
 loadWordLists().then((loaded) => {
   setMode(currentMode);
   if (!loaded) {
-    setStatus("Using the built-in word list. (Word list download failed.)", "warning");
+    if (!(currentMode === "daily" && gameOver)) {
+      setStatus("Using the built-in word list. (Word list download failed.)", "warning");
+    }
   }
 });
