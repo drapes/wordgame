@@ -76,6 +76,13 @@ const grid = document.getElementById("grid");
 const statusMessage = document.getElementById("status-message");
 const keyboard = document.getElementById("keyboard");
 const newGameButton = document.getElementById("new-game");
+const statsButton = document.getElementById("stats-button");
+const statsPanel = document.getElementById("stats-panel");
+const statsSummary = document.getElementById("stats-summary");
+const statsDistribution = document.getElementById("stats-distribution");
+const statsCloseButton = document.getElementById("stats-close");
+
+const STATS_COOKIE = "wordgameStats";
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
@@ -83,6 +90,12 @@ let targetWord = "";
 let currentGuess = "";
 let guesses = [];
 let gameOver = false;
+let hasRecordedResult = false;
+let stats = {
+  gamesPlayed: 0,
+  wins: 0,
+  distribution: Array(MAX_GUESSES).fill(0),
+};
 
 const keyboardRows = [
   ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
@@ -141,11 +154,129 @@ function setStatus(message, tone = "neutral") {
   statusMessage.dataset.tone = tone;
 }
 
+function readCookie(name) {
+  const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+  const match = cookies.find((cookie) => cookie.startsWith(`${name}=`));
+  if (!match) {
+    return null;
+  }
+  return decodeURIComponent(match.split("=").slice(1).join("="));
+}
+
+function writeCookie(name, value, days = 365) {
+  const expires = new Date(Date.now() + days * 86400000).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function loadStats() {
+  const stored = readCookie(STATS_COOKIE);
+  if (!stored) {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(stored);
+    if (
+      typeof parsed.gamesPlayed === "number" &&
+      typeof parsed.wins === "number" &&
+      Array.isArray(parsed.distribution)
+    ) {
+      stats = {
+        gamesPlayed: parsed.gamesPlayed,
+        wins: parsed.wins,
+        distribution: parsed.distribution.slice(0, MAX_GUESSES),
+      };
+      if (stats.distribution.length < MAX_GUESSES) {
+        stats.distribution = stats.distribution.concat(
+          Array(MAX_GUESSES - stats.distribution.length).fill(0),
+        );
+      }
+    }
+  } catch (error) {
+    stats = {
+      gamesPlayed: 0,
+      wins: 0,
+      distribution: Array(MAX_GUESSES).fill(0),
+    };
+  }
+}
+
+function saveStats() {
+  writeCookie(STATS_COOKIE, JSON.stringify(stats));
+}
+
+function updateStatsPanel() {
+  const winRate = stats.gamesPlayed === 0 ? 0 : Math.round((stats.wins / stats.gamesPlayed) * 100);
+  statsSummary.innerHTML = "";
+  const summaryItems = [
+    { label: "Played", value: stats.gamesPlayed },
+    { label: "Wins", value: stats.wins },
+    { label: "Win rate", value: `${winRate}%` },
+  ];
+  summaryItems.forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "stats-card";
+    const label = document.createElement("div");
+    label.className = "stats-card__label";
+    label.textContent = item.label;
+    const value = document.createElement("div");
+    value.className = "stats-card__value";
+    value.textContent = item.value;
+    card.append(label, value);
+    statsSummary.appendChild(card);
+  });
+
+  statsDistribution.innerHTML = "";
+  const maxCount = Math.max(1, ...stats.distribution);
+  stats.distribution.forEach((count, index) => {
+    const row = document.createElement("div");
+    row.className = "stats-row";
+    const label = document.createElement("span");
+    label.textContent = `${index + 1}`;
+    const bar = document.createElement("div");
+    bar.className = "stats-bar";
+    const fill = document.createElement("div");
+    fill.className = "stats-bar__fill";
+    fill.style.width = `${Math.round((count / maxCount) * 100)}%`;
+    bar.appendChild(fill);
+    const value = document.createElement("span");
+    value.textContent = count;
+    row.append(label, bar, value);
+    statsDistribution.appendChild(row);
+  });
+}
+
+function openStatsPanel() {
+  updateStatsPanel();
+  statsPanel.classList.add("is-open");
+  statsPanel.setAttribute("aria-hidden", "false");
+}
+
+function closeStatsPanel() {
+  statsPanel.classList.remove("is-open");
+  statsPanel.setAttribute("aria-hidden", "true");
+}
+
+function recordGameResult(won, guessCount) {
+  if (hasRecordedResult) {
+    return;
+  }
+  stats.gamesPlayed += 1;
+  if (won) {
+    stats.wins += 1;
+    if (guessCount >= 1 && guessCount <= MAX_GUESSES) {
+      stats.distribution[guessCount - 1] += 1;
+    }
+  }
+  saveStats();
+  hasRecordedResult = true;
+}
+
 function resetGame() {
   targetWord = pickWord();
   currentGuess = "";
   guesses = [];
   gameOver = false;
+  hasRecordedResult = false;
   buildGrid();
   buildKeyboard();
   setStatus("Guess the 5-letter word in six tries.");
@@ -305,12 +436,14 @@ function submitGuess() {
   if (currentGuess === targetWord) {
     setStatus("Nice! You solved it.", "success");
     gameOver = true;
+    recordGameResult(true, guesses.length);
     return;
   }
 
   if (guesses.length >= MAX_GUESSES) {
     setStatus(`Out of guesses! The word was ${targetWord.toUpperCase()}.`, "error");
     gameOver = true;
+    recordGameResult(false, 0);
     return;
   }
 
@@ -334,9 +467,12 @@ function handlePhysicalKey(event) {
   }
 }
 
+statsButton.addEventListener("click", openStatsPanel);
+statsCloseButton.addEventListener("click", closeStatsPanel);
 newGameButton.addEventListener("click", resetGame);
 document.addEventListener("keydown", handlePhysicalKey);
 
+loadStats();
 setStatus("Loading word lists...");
 loadWordLists().then((loaded) => {
   resetGame();

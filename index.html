@@ -9,7 +9,12 @@
   <body>
     <main class="app">
       <header class="app__header">
-        <h1>Wordgame</h1>
+        <div class="app__title-row">
+          <h1>Wordgame</h1>
+          <button class="stats-button" type="button" id="stats-button" aria-label="View game stats">
+            📊
+          </button>
+        </div>
         <p class="app__subtitle">A Wordle-inspired word puzzle</p>
       </header>
 
@@ -25,6 +30,15 @@
 
       <section class="controls">
         <button id="new-game" type="button">New word</button>
+      </section>
+
+      <section class="stats-panel" id="stats-panel" aria-hidden="true" aria-label="Game statistics">
+        <div class="stats-panel__header">
+          <h2>Statistics</h2>
+          <button class="stats-close" type="button" id="stats-close" aria-label="Close stats">✕</button>
+        </div>
+        <div class="stats-summary" id="stats-summary"></div>
+        <div class="stats-distribution" id="stats-distribution"></div>
       </section>
     </main>
 
