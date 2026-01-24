@@ -249,6 +249,7 @@ function openStatsPanel() {
   updateStatsPanel();
   statsPanel.classList.add("is-open");
   statsPanel.setAttribute("aria-hidden", "false");
+  statsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function closeStatsPanel() {
@@ -475,6 +476,7 @@ statsButton.addEventListener("click", openStatsPanel);
 statsCloseButton.addEventListener("click", closeStatsPanel);
 newGameButton.addEventListener("click", () => {
   resetGame();
+  window.scrollTo({ top: 0, behavior: "smooth" });
   newGameButton.blur();
 });
 document.addEventListener("keydown", handlePhysicalKey);
