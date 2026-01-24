@@ -268,6 +268,9 @@ function recordGameResult(won, guessCount) {
     }
   }
   saveStats();
+  if (statsPanel.classList.contains("is-open")) {
+    updateStatsPanel();
+  }
   hasRecordedResult = true;
 }
 
