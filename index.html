@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wordgame - Wordle Clone</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>Wordgame</h1>
+        <p class="app__subtitle">A Wordle-inspired word puzzle</p>
+      </header>
+
+      <section class="status" aria-live="polite">
+        <p id="status-message">Guess the 5-letter word in six tries.</p>
+      </section>
+
+      <section class="board" aria-label="Word grid">
+        <div class="grid" id="grid"></div>
+      </section>
+
+      <section class="keyboard" aria-label="On-screen keyboard" id="keyboard"></section>
+
+      <section class="controls">
+        <button id="new-game" type="button">New word</button>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
