@@ -1,7 +1,7 @@
 const WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
 
-const WORDS = [
+const DEFAULT_WORDS = [
   "about",
   "agent",
   "ahead",
@@ -77,6 +77,7 @@ const statusMessage = document.getElementById("status-message");
 const keyboard = document.getElementById("keyboard");
 const newGameButton = document.getElementById("new-game");
 
+let WORDS = [];
 let targetWord = "";
 let currentGuess = "";
 let guesses = [];
@@ -89,8 +90,9 @@ const keyboardRows = [
 ];
 
 function pickWord() {
-  const randomIndex = Math.floor(Math.random() * WORDS.length);
-  return WORDS[randomIndex];
+  const wordBank = WORDS.length > 0 ? WORDS : DEFAULT_WORDS;
+  const randomIndex = Math.floor(Math.random() * wordBank.length);
+  return wordBank[randomIndex];
 }
 
 function buildGrid() {
@@ -137,6 +139,27 @@ function resetGame() {
   buildGrid();
   buildKeyboard();
   setStatus("Guess the 5-letter word in six tries.");
+}
+
+async function loadWordList() {
+  try {
+    const response = await fetch("words.txt");
+    if (!response.ok) {
+      throw new Error("Failed to load word list.");
+    }
+    const text = await response.text();
+    WORDS = text
+      .split(/\r?\n/)
+      .map((word) => word.trim().toLowerCase())
+      .filter((word) => word.length === WORD_LENGTH && /^[a-z]+$/.test(word));
+    if (WORDS.length === 0) {
+      WORDS = [...DEFAULT_WORDS];
+    }
+    return true;
+  } catch (error) {
+    WORDS = [...DEFAULT_WORDS];
+    return false;
+  }
 }
 
 function handleKey(key) {
@@ -241,7 +264,8 @@ function submitGuess() {
     return;
   }
 
-  if (!WORDS.includes(currentGuess)) {
+  const wordBank = WORDS.length > 0 ? WORDS : DEFAULT_WORDS;
+  if (!wordBank.includes(currentGuess)) {
     setStatus("Word not in list. Try another one.", "warning");
     return;
   }
@@ -286,4 +310,10 @@ function handlePhysicalKey(event) {
 newGameButton.addEventListener("click", resetGame);
 document.addEventListener("keydown", handlePhysicalKey);
 
-resetGame();
+setStatus("Loading word list...");
+loadWordList().then((loaded) => {
+  resetGame();
+  if (!loaded) {
+    setStatus("Using the built-in word list. (Word list download failed.)", "warning");
+  }
+});
