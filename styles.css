@@ -97,23 +97,34 @@ body {
 }
 
 .keyboard {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keyboard-row {
+  display: flex;
+  justify-content: center;
   gap: 6px;
+}
+
+.keyboard-row--offset {
+  padding-left: 20px;
 }
 
 .key {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 0;
+  padding: 10px 12px;
+  min-width: 36px;
   font-weight: 600;
   cursor: pointer;
   text-transform: uppercase;
 }
 
 .key.wide {
-  grid-column: span 2;
+  min-width: 64px;
 }
 
 .key.correct {
@@ -155,7 +166,15 @@ body {
     height: 52px;
   }
 
-  .keyboard {
-    grid-template-columns: repeat(9, 1fr);
+  .keyboard-row--offset {
+    padding-left: 12px;
+  }
+
+  .key {
+    min-width: 32px;
+  }
+
+  .key.wide {
+    min-width: 56px;
   }
 }

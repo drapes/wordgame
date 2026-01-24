@@ -111,7 +111,12 @@ function buildGrid() {
 
 function buildKeyboard() {
   keyboard.innerHTML = "";
-  keyboardRows.forEach((row) => {
+  keyboardRows.forEach((row, rowIndex) => {
+    const rowContainer = document.createElement("div");
+    rowContainer.className = "keyboard-row";
+    if (rowIndex === 1) {
+      rowContainer.classList.add("keyboard-row--offset");
+    }
     row.forEach((letter) => {
       const key = document.createElement("button");
       key.type = "button";
@@ -122,8 +127,9 @@ function buildKeyboard() {
       key.dataset.key = letter;
       key.textContent = letter === "back" ? "⌫" : letter;
       key.addEventListener("click", () => handleKey(letter));
-      keyboard.appendChild(key);
+      rowContainer.appendChild(key);
     });
+    keyboard.appendChild(rowContainer);
   });
 }
 
