@@ -279,7 +279,10 @@ function submitGuess() {
     return;
   }
 
-  const guessBank = GUESS_WORDS.length > 0 ? GUESS_WORDS : DEFAULT_WORDS;
+  const guessBank =
+    GUESS_WORDS.length > 0 || ANSWER_WORDS.length > 0
+      ? Array.from(new Set([...ANSWER_WORDS, ...GUESS_WORDS]))
+      : DEFAULT_WORDS;
   if (!guessBank.includes(currentGuess)) {
     setStatus("Word not in list. Try another one.", "warning");
     return;
