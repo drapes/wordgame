@@ -356,6 +356,13 @@ function setMode(mode) {
   currentMode = mode;
   modeDailyButton.classList.toggle("is-active", mode === "daily");
   modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  if (mode === "daily") {
+    newGameButton.textContent = "Next word";
+    newGameButton.style.display = "none";
+  } else {
+    newGameButton.textContent = "Next word";
+    newGameButton.style.display = "inline-flex";
+  }
   void resetGame();
 }
 
