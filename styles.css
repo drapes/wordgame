@@ -96,6 +96,12 @@ body {
   justify-content: center;
 }
 
+.grid-wrapper {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -177,6 +183,12 @@ body {
   background: var(--green);
   color: #fff;
   border-color: var(--green);
+}
+
+.key.split {
+  background: linear-gradient(90deg, var(--left-color) 0 50%, var(--right-color) 50% 100%);
+  color: #fff;
+  border-color: transparent;
 }
 
 .key.present {
@@ -355,5 +367,9 @@ body {
 
   .stats-summary {
     grid-template-columns: 1fr;
+  }
+
+  .grid-wrapper {
+    flex-direction: column;
   }
 }

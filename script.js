@@ -86,6 +86,7 @@ const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
 const statsModeAllButton = document.getElementById("stats-mode-all");
 const modeDailyButton = document.getElementById("mode-daily");
 const modeInfiniteButton = document.getElementById("mode-infinite");
+const modeDuoButton = document.getElementById("mode-duo");
 
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
@@ -93,7 +94,7 @@ const INFINITE_COOKIE = "wordgameInfinite";
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
-let targetWord = "";
+let targetWords = [];
 let currentGuess = "";
 let guesses = [];
 let gameOver = false;
@@ -101,6 +102,8 @@ let hasRecordedResult = false;
 let currentMode = "infinite";
 let statsMode = "all";
 let currentDailyKey = null;
+let gridBoards = [];
+let solvedBoards = [];
 let stats = {
   modes: {
     daily: {
@@ -142,14 +145,23 @@ function pickWord(wordBank, seed) {
 
 function buildGrid() {
   grid.innerHTML = "";
-  for (let row = 0; row < MAX_GUESSES; row += 1) {
-    for (let col = 0; col < WORD_LENGTH; col += 1) {
-      const tile = document.createElement("div");
-      tile.className = "tile";
-      tile.dataset.row = row;
-      tile.dataset.col = col;
-      grid.appendChild(tile);
+  gridBoards = [];
+  const boardCount = currentMode === "duo" ? 2 : 1;
+  for (let boardIndex = 0; boardIndex < boardCount; boardIndex += 1) {
+    const board = document.createElement("div");
+    board.className = "grid";
+    board.dataset.board = boardIndex;
+    for (let row = 0; row < MAX_GUESSES; row += 1) {
+      for (let col = 0; col < WORD_LENGTH; col += 1) {
+        const tile = document.createElement("div");
+        tile.className = "tile";
+        tile.dataset.row = row;
+        tile.dataset.col = col;
+        board.appendChild(tile);
+      }
     }
+    grid.appendChild(board);
+    gridBoards.push(board);
   }
 }
 
@@ -400,7 +412,7 @@ function updateStatsPanel() {
 }
 
 function updateNextWordButton() {
-  if (currentMode !== "infinite") {
+  if (currentMode !== "infinite" && currentMode !== "duo") {
     newGameButton.style.display = "none";
     return;
   }
@@ -412,6 +424,7 @@ function setMode(mode) {
   currentMode = mode;
   modeDailyButton.classList.toggle("is-active", mode === "daily");
   modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  modeDuoButton.classList.toggle("is-active", mode === "duo");
   updateNextWordButton();
   void resetGame();
 }
@@ -478,10 +491,20 @@ function renderSavedBoard(savedGuesses) {
   buildGrid();
   buildKeyboard();
   guesses = [];
+  solvedBoards = targetWords.map(() => false);
   savedGuesses.forEach((guess, index) => {
-    const result = scoreGuess(guess, targetWord);
-    paintGuess(guess, result, index);
-    updateKeyboard(guess, result);
+    targetWords.forEach((target, boardIndex) => {
+      const result = scoreGuess(guess, target);
+      paintGuess(guess, result, index, boardIndex);
+      if (currentMode === "duo") {
+        updateKeyboardDuo(guess, result, boardIndex);
+      } else {
+        updateKeyboardSingle(guess, result);
+      }
+      if (guess === target) {
+        solvedBoards[boardIndex] = true;
+      }
+    });
     guesses.push(guess);
   });
 }
@@ -512,7 +535,7 @@ function recordGameResult(won, guessCount) {
   }
   if (currentMode === "daily" && currentDailyKey) {
     updateDailyStreaks(currentDailyKey, won);
-  } else if (currentMode === "infinite") {
+  } else if (currentMode === "infinite" || currentMode === "duo") {
     modeStats.currentStreak = won ? modeStats.currentStreak + 1 : 0;
     modeStats.maxStreak = Math.max(modeStats.maxStreak, modeStats.currentStreak);
   }
@@ -523,9 +546,10 @@ function recordGameResult(won, guessCount) {
       completed: true,
       guesses: [...guesses],
     });
-  } else if (currentMode === "infinite") {
+  } else if (currentMode === "infinite" || currentMode === "duo") {
     saveInfiniteState({
-      targetWord,
+      mode: currentMode,
+      targetWords,
       guesses: [...guesses],
       completed: true,
     });
@@ -538,7 +562,7 @@ function recordGameResult(won, guessCount) {
 async function resetGame() {
   if (currentMode === "daily") {
     const dailyInfo = await getDailyWord();
-    targetWord = dailyInfo.word;
+    targetWords = [dailyInfo.word];
     currentDailyKey = dailyInfo.dateKey;
     const dailyStats = stats.modes.daily;
     if (dailyStats.lastResultDate) {
@@ -552,12 +576,22 @@ async function resetGame() {
     }
   } else {
     const saved = loadInfiniteState();
-    if (saved?.targetWord && Array.isArray(saved.guesses) && !saved.completed) {
-      targetWord = saved.targetWord;
+    if (saved && Array.isArray(saved.guesses) && !saved.completed) {
+      const savedMode = saved.mode || "infinite";
+      if (savedMode !== currentMode) {
+        // ignore saved state from another mode
+      } else if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
+        targetWords = saved.targetWords;
+      } else if (saved.targetWord) {
+        targetWords = [saved.targetWord];
+      }
+    }
+    if (targetWords.length > 0 && Array.isArray(saved?.guesses) && !saved.completed) {
       guesses = [];
       currentGuess = "";
       gameOver = false;
       hasRecordedResult = false;
+      solvedBoards = targetWords.map(() => false);
       buildGrid();
       buildKeyboard();
       renderSavedBoard(saved.guesses);
@@ -566,13 +600,23 @@ async function resetGame() {
       return;
     }
     const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
-    targetWord = pickWord(wordBank);
+    if (currentMode === "duo") {
+      const first = pickWord(wordBank);
+      let second = pickWord(wordBank);
+      while (second === first && wordBank.length > 1) {
+        second = pickWord(wordBank);
+      }
+      targetWords = [first, second];
+    } else {
+      targetWords = [pickWord(wordBank)];
+    }
     currentDailyKey = null;
   }
   currentGuess = "";
   guesses = [];
   gameOver = false;
   hasRecordedResult = false;
+  solvedBoards = targetWords.map(() => false);
   updateNextWordButton();
 
   if (currentMode === "daily") {
@@ -584,15 +628,25 @@ async function resetGame() {
       setStatus("Daily complete. Try infinite mode or come back tomorrow.", "warning");
       return;
     }
+    if (saved?.dateKey === currentDailyKey && Array.isArray(saved.guesses) && !saved.completed) {
+      renderSavedBoard(saved.guesses);
+      setStatus("Keep going!", "neutral");
+      return;
+    }
   }
 
   buildGrid();
   buildKeyboard();
-  setStatus("Guess the 5-letter word in six tries.");
+  const introMessage =
+    currentMode === "duo"
+      ? "Guess both 5-letter words in six tries."
+      : "Guess the 5-letter word in six tries.";
+  setStatus(introMessage);
   updateNextWordButton();
-  if (currentMode === "infinite") {
+  if (currentMode === "infinite" || currentMode === "duo") {
     saveInfiniteState({
-      targetWord,
+      mode: currentMode,
+      targetWords,
       guesses: [],
       completed: false,
     });
@@ -658,15 +712,17 @@ function handleKey(key) {
 
 function updateBoard() {
   const rowIndex = guesses.length;
-  for (let col = 0; col < WORD_LENGTH; col += 1) {
-    const tile = grid.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
-    if (!tile) {
-      continue;
+  gridBoards.forEach((board) => {
+    for (let col = 0; col < WORD_LENGTH; col += 1) {
+      const tile = board.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
+      if (!tile) {
+        continue;
+      }
+      const letter = currentGuess[col] || "";
+      tile.textContent = letter;
+      tile.classList.toggle("filled", Boolean(letter));
     }
-    const letter = currentGuess[col] || "";
-    tile.textContent = letter;
-    tile.classList.toggle("filled", Boolean(letter));
-  }
+  });
 }
 
 function scoreGuess(guess, target) {
@@ -694,15 +750,57 @@ function scoreGuess(guess, target) {
   return result;
 }
 
-function paintGuess(guess, result, rowIndex) {
+function paintGuess(guess, result, rowIndex, boardIndex = 0) {
+  const board = gridBoards[boardIndex];
+  if (!board) {
+    return;
+  }
   for (let col = 0; col < WORD_LENGTH; col += 1) {
-    const tile = grid.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
+    const tile = board.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
     tile.textContent = guess[col];
     tile.classList.add(result[col]);
   }
 }
 
-function updateKeyboard(guess, result) {
+function getKeyStatus(key, side) {
+  return side === "left" ? key.dataset.leftStatus || "" : key.dataset.rightStatus || "";
+}
+
+function setKeyStatus(key, side, status) {
+  if (side === "left") {
+    key.dataset.leftStatus = status;
+  } else {
+    key.dataset.rightStatus = status;
+  }
+}
+
+function getStatusRank(status) {
+  if (status === "correct") {
+    return 3;
+  }
+  if (status === "present") {
+    return 2;
+  }
+  if (status === "absent") {
+    return 1;
+  }
+  return 0;
+}
+
+function statusColor(status) {
+  if (status === "correct") {
+    return "var(--green)";
+  }
+  if (status === "present") {
+    return "var(--yellow)";
+  }
+  if (status === "absent") {
+    return "var(--gray)";
+  }
+  return "var(--border)";
+}
+
+function updateKeyboardSingle(guess, result) {
   guess.split("").forEach((letter, index) => {
     const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
     if (!key) {
@@ -730,6 +828,28 @@ function updateKeyboard(guess, result) {
   });
 }
 
+function updateKeyboardDuo(guess, result, boardIndex) {
+  const side = boardIndex === 0 ? "left" : "right";
+  guess.split("").forEach((letter, index) => {
+    const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
+    if (!key) {
+      return;
+    }
+    key.classList.remove("correct", "present", "absent");
+    key.classList.add("split");
+    const currentStatus = getKeyStatus(key, side);
+    const nextStatus = result[index];
+    if (getStatusRank(nextStatus) < getStatusRank(currentStatus)) {
+      return;
+    }
+    setKeyStatus(key, side, nextStatus);
+    const left = statusColor(getKeyStatus(key, "left"));
+    const right = statusColor(getKeyStatus(key, "right"));
+    key.style.setProperty("--left-color", left);
+    key.style.setProperty("--right-color", right);
+  });
+}
+
 function submitGuess() {
   if (currentGuess.length < WORD_LENGTH) {
     setStatus("Not enough letters. Keep typing.", "warning");
@@ -745,9 +865,18 @@ function submitGuess() {
     return;
   }
 
-  const result = scoreGuess(currentGuess, targetWord);
-  paintGuess(currentGuess, result, guesses.length);
-  updateKeyboard(currentGuess, result);
+  targetWords.forEach((target, boardIndex) => {
+    const result = scoreGuess(currentGuess, target);
+    paintGuess(currentGuess, result, guesses.length, boardIndex);
+    if (currentMode === "duo") {
+      updateKeyboardDuo(currentGuess, result, boardIndex);
+    } else {
+      updateKeyboardSingle(currentGuess, result);
+    }
+    if (currentGuess === target) {
+      solvedBoards[boardIndex] = true;
+    }
+  });
   guesses.push(currentGuess);
   if (currentMode === "daily" && currentDailyKey) {
     saveDailyState({
@@ -755,15 +884,17 @@ function submitGuess() {
       completed: false,
       guesses: [...guesses],
     });
-  } else if (currentMode === "infinite") {
+  } else if (currentMode === "infinite" || currentMode === "duo") {
     saveInfiniteState({
-      targetWord,
+      mode: currentMode,
+      targetWords,
       guesses: [...guesses],
       completed: false,
     });
   }
 
-  if (currentGuess === targetWord) {
+  const allSolved = solvedBoards.length > 0 && solvedBoards.every(Boolean);
+  if (allSolved) {
     setStatus("Nice! You solved it.", "success");
     gameOver = true;
     recordGameResult(true, guesses.length);
@@ -771,7 +902,8 @@ function submitGuess() {
   }
 
   if (guesses.length >= MAX_GUESSES) {
-    setStatus(`Out of guesses! The word was ${targetWord.toUpperCase()}.`, "error");
+    const reveal = targetWords.map((word) => word.toUpperCase()).join(" / ");
+    setStatus(`Out of guesses! The word was ${reveal}.`, "error");
     gameOver = true;
     recordGameResult(false, 0);
     return;
@@ -821,6 +953,10 @@ modeDailyButton.addEventListener("click", () => {
 modeInfiniteButton.addEventListener("click", () => {
   setMode("infinite");
   modeInfiniteButton.blur();
+});
+modeDuoButton.addEventListener("click", () => {
+  setMode("duo");
+  modeDuoButton.blur();
 });
 newGameButton.addEventListener("click", () => {
   void resetGame();
