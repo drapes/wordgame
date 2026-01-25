@@ -768,6 +768,12 @@ function handleKey(key) {
 function updateBoard() {
   const rowIndex = guesses.length;
   gridBoards.forEach((board) => {
+    if (currentMode === "duo") {
+      const boardIndex = Number(board.dataset.board);
+      if (solvedBoards[boardIndex]) {
+        return;
+      }
+    }
     for (let col = 0; col < WORD_LENGTH; col += 1) {
       const tile = board.querySelector(`.tile[data-row="${rowIndex}"][data-col="${col}"]`);
       if (!tile) {
@@ -806,6 +812,9 @@ function scoreGuess(guess, target) {
 }
 
 function paintGuess(guess, result, rowIndex, boardIndex = 0) {
+  if (currentMode === "duo" && solvedBoards[boardIndex]) {
+    return;
+  }
   const board = gridBoards[boardIndex];
   if (!board) {
     return;
@@ -921,6 +930,9 @@ function submitGuess() {
   }
 
   targetWords.forEach((target, boardIndex) => {
+    if (currentMode === "duo" && solvedBoards[boardIndex]) {
+      return;
+    }
     const result = scoreGuess(currentGuess, target);
     paintGuess(currentGuess, result, guesses.length, boardIndex);
     if (currentMode === "duo") {
