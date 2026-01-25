@@ -372,4 +372,8 @@ body {
   .grid-wrapper {
     flex-direction: column;
   }
+
+  .mode-toggle__button--duo {
+    display: none;
+  }
 }
