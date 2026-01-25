@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Wordgame - Wordle Clone</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <div class="app__title-row">
+          <h1>Wordgame</h1>
+          <button class="stats-button" type="button" id="stats-button" aria-label="View game stats">
+            📊
+          </button>
+        </div>
+        <div class="mode-toggle" role="group" aria-label="Game mode">
+          <button class="mode-toggle__button" type="button" data-mode="daily" id="mode-daily">
+            Daily
+          </button>
+          <button class="mode-toggle__button" type="button" data-mode="infinite" id="mode-infinite">
+            ∞
+          </button>
+          <button
+            class="mode-toggle__button mode-toggle__button--duo"
+            type="button"
+            data-mode="duo"
+            id="mode-duo"
+          >
+            ∞∞
+          </button>
+        </div>
+      </header>
+
+      <section class="status" aria-live="polite">
+        <p id="status-message">Guess the 5-letter word in six tries.</p>
+      </section>
+
+      <section class="board" aria-label="Word grid">
+        <div class="grid-wrapper" id="grid"></div>
+      </section>
+
+      <section class="keyboard" aria-label="On-screen keyboard" id="keyboard"></section>
+
+      <section class="controls">
+        <button id="new-game" type="button">New word</button>
+      </section>
+
+      <section class="stats-panel" id="stats-panel" aria-hidden="true" aria-label="Game statistics">
+        <div class="stats-panel__header">
+          <h2>Statistics</h2>
+          <button class="stats-close" type="button" id="stats-close" aria-label="Close stats">✕</button>
+        </div>
+        <div class="stats-toggle" role="group" aria-label="Stats mode">
+          <button class="stats-toggle__button" type="button" data-stats-mode="daily" id="stats-mode-daily">
+            Daily
+          </button>
+          <button class="stats-toggle__button" type="button" data-stats-mode="duo" id="stats-mode-duo">
+            ∞∞
+          </button>
+          <button
+            class="stats-toggle__button"
+            type="button"
+            data-stats-mode="infinite"
+            id="stats-mode-infinite"
+          >
+            ∞
+          </button>
+          <button class="stats-toggle__button" type="button" data-stats-mode="all" id="stats-mode-all">
+            All
+          </button>
+        </div>
+        <div class="stats-sections" id="stats-summary"></div>
+        <div class="stats-distribution" id="stats-distribution"></div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
