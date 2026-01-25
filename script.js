@@ -82,6 +82,7 @@ const statsSummary = document.getElementById("stats-summary");
 const statsDistribution = document.getElementById("stats-distribution");
 const statsCloseButton = document.getElementById("stats-close");
 const statsModeDailyButton = document.getElementById("stats-mode-daily");
+const statsModeDuoButton = document.getElementById("stats-mode-duo");
 const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
 const statsModeAllButton = document.getElementById("stats-mode-all");
 const modeDailyButton = document.getElementById("mode-daily");
@@ -91,6 +92,7 @@ const modeDuoButton = document.getElementById("mode-duo");
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
 const INFINITE_COOKIE = "wordgameInfinite";
+const DUO_COOKIE = "wordgameDuo";
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
@@ -116,6 +118,13 @@ let stats = {
       lastResultWin: false,
     },
     infinite: {
+      gamesPlayed: 0,
+      wins: 0,
+      distribution: Array(MAX_GUESSES).fill(0),
+      currentStreak: 0,
+      maxStreak: 0,
+    },
+    duo: {
       gamesPlayed: 0,
       wins: 0,
       distribution: Array(MAX_GUESSES).fill(0),
@@ -220,13 +229,20 @@ function createStatsStore() {
         currentStreak: 0,
         maxStreak: 0,
       },
+      duo: {
+        ...createEmptyStats(),
+        currentStreak: 0,
+        maxStreak: 0,
+      },
     },
   };
 }
 
 function getCombinedStats() {
   const combined = createEmptyStats();
-  Object.values(stats.modes).forEach((modeStats) => {
+  const included = ["daily", "infinite"];
+  included.forEach((mode) => {
+    const modeStats = stats.modes[mode];
     combined.gamesPlayed += modeStats.gamesPlayed;
     combined.wins += modeStats.wins;
     combined.distribution = combined.distribution.map(
@@ -256,6 +272,22 @@ function saveInfiniteState(payload) {
 
 function loadInfiniteState() {
   const stored = readCookie(INFINITE_COOKIE);
+  if (!stored) {
+    return null;
+  }
+  try {
+    return JSON.parse(stored);
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveDuoState(payload) {
+  writeCookie(DUO_COOKIE, JSON.stringify(payload), 7);
+}
+
+function loadDuoState() {
+  const stored = readCookie(DUO_COOKIE);
   if (!stored) {
     return null;
   }
@@ -312,6 +344,15 @@ function loadStats() {
             currentStreak: parsed.modes.infinite.currentStreak || 0,
             maxStreak: parsed.modes.infinite.maxStreak || 0,
           },
+          duo: {
+            gamesPlayed: parsed.modes.duo?.gamesPlayed || 0,
+            wins: parsed.modes.duo?.wins || 0,
+            distribution: Array.isArray(parsed.modes.duo?.distribution)
+              ? parsed.modes.duo.distribution.slice(0, MAX_GUESSES)
+              : Array(MAX_GUESSES).fill(0),
+            currentStreak: parsed.modes.duo?.currentStreak || 0,
+            maxStreak: parsed.modes.duo?.maxStreak || 0,
+          },
         },
       };
     } else if (
@@ -348,6 +389,7 @@ function saveStats() {
 function setStatsMode(mode) {
   statsMode = mode;
   statsModeDailyButton.classList.toggle("is-active", mode === "daily");
+  statsModeDuoButton.classList.toggle("is-active", mode === "duo");
   statsModeInfiniteButton.classList.toggle("is-active", mode === "infinite");
   statsModeAllButton.classList.toggle("is-active", mode === "all");
   updateStatsPanel();
@@ -358,6 +400,8 @@ function updateStatsPanel() {
   const selectedStats =
     statsMode === "daily"
       ? stats.modes.daily
+      : statsMode === "duo"
+      ? stats.modes.duo
       : statsMode === "infinite"
       ? stats.modes.infinite
       : combinedStats;
@@ -416,7 +460,7 @@ function updateNextWordButton() {
     newGameButton.style.display = "none";
     return;
   }
-  newGameButton.textContent = "Next word";
+  newGameButton.textContent = currentMode === "duo" ? "Next duo" : "Next word";
   newGameButton.style.display = gameOver ? "inline-flex" : "none";
 }
 
@@ -546,7 +590,14 @@ function recordGameResult(won, guessCount) {
       completed: true,
       guesses: [...guesses],
     });
-  } else if (currentMode === "infinite" || currentMode === "duo") {
+  } else if (currentMode === "duo") {
+    saveDuoState({
+      mode: currentMode,
+      targetWords,
+      guesses: [...guesses],
+      completed: true,
+    });
+  } else if (currentMode === "infinite") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -575,12 +626,9 @@ async function resetGame() {
       }
     }
   } else {
-    const saved = loadInfiniteState();
+    const saved = currentMode === "duo" ? loadDuoState() : loadInfiniteState();
     if (saved && Array.isArray(saved.guesses) && !saved.completed) {
-      const savedMode = saved.mode || "infinite";
-      if (savedMode !== currentMode) {
-        // ignore saved state from another mode
-      } else if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
+      if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
         targetWords = saved.targetWords;
       } else if (saved.targetWord) {
         targetWords = [saved.targetWord];
@@ -643,7 +691,14 @@ async function resetGame() {
       : "Guess the 5-letter word in six tries.";
   setStatus(introMessage);
   updateNextWordButton();
-  if (currentMode === "infinite" || currentMode === "duo") {
+  if (currentMode === "duo") {
+    saveDuoState({
+      mode: currentMode,
+      targetWords,
+      guesses: [],
+      completed: false,
+    });
+  } else if (currentMode === "infinite") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -884,7 +939,14 @@ function submitGuess() {
       completed: false,
       guesses: [...guesses],
     });
-  } else if (currentMode === "infinite" || currentMode === "duo") {
+  } else if (currentMode === "duo") {
+    saveDuoState({
+      mode: currentMode,
+      targetWords,
+      guesses: [...guesses],
+      completed: false,
+    });
+  } else if (currentMode === "infinite") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -937,6 +999,10 @@ statsCloseButton.addEventListener("click", closeStatsPanel);
 statsModeDailyButton.addEventListener("click", () => {
   setStatsMode("daily");
   statsModeDailyButton.blur();
+});
+statsModeDuoButton.addEventListener("click", () => {
+  setStatsMode("duo");
+  statsModeDuoButton.blur();
 });
 statsModeInfiniteButton.addEventListener("click", () => {
   setStatsMode("infinite");
