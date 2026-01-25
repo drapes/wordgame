@@ -1,14 +1,17 @@
 :root {
   color-scheme: light;
-  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  --bg: #f6f6f7;
-  --panel: #ffffff;
-  --text: #1c1c1e;
-  --muted: #6b7280;
-  --border: #d4d4d8;
-  --green: #3a7c4f;
-  --yellow: #c9a227;
-  --gray: #6b7280;
+  font-family: "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --bg: #f5f2ee;
+  --panel: #fffdf9;
+  --text: #1f1c16;
+  --muted: #6f665a;
+  --border: rgba(31, 28, 22, 0.08);
+  --green: #2f7a5c;
+  --yellow: #d1a23f;
+  --gray: #8a8278;
+  --shadow-soft: 0 20px 60px rgba(31, 28, 22, 0.08);
+  --shadow-card: 0 10px 30px rgba(31, 28, 22, 0.08);
+  --ring: rgba(31, 28, 22, 0.15);
 }
 
 * {
@@ -17,7 +20,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: radial-gradient(circle at top, #fefbf7, var(--bg));
   color: var(--text);
   min-height: 100vh;
   display: flex;
@@ -30,6 +33,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-bottom: 32px;
 }
 
 .app__header {
@@ -43,27 +47,44 @@ body {
   gap: 12px;
 }
 
+.app__title-row h1 {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
 .stats-button {
   border: 1px solid var(--border);
-  background: var(--panel);
+  background: rgba(255, 255, 255, 0.65);
   border-radius: 10px;
   padding: 6px 10px;
   cursor: pointer;
   font-size: 1.1rem;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stats-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(31, 28, 22, 0.12);
 }
 
 .app__subtitle {
   margin: 6px 0 0;
   color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .mode-toggle {
   margin-top: 10px;
   display: inline-flex;
   gap: 8px;
-  background: #eef0f4;
+  background: rgba(255, 255, 255, 0.7);
   padding: 6px;
   border-radius: 999px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .mode-toggle__button {
@@ -74,21 +95,23 @@ body {
   cursor: pointer;
   font-weight: 600;
   color: var(--muted);
+  transition: color 0.2s ease, background 0.2s ease;
 }
 
 .mode-toggle__button.is-active {
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .status {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 16px;
+  border-radius: 16px;
+  padding: 14px 18px;
   text-align: center;
   font-weight: 500;
+  box-shadow: var(--shadow-card);
 }
 
 .board {
@@ -112,17 +135,19 @@ body {
   width: 60px;
   height: 60px;
   background: var(--panel);
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
   display: grid;
   place-items: center;
   font-size: 1.6rem;
   font-weight: 700;
   text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(31, 28, 22, 0.08);
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .tile.filled {
-  border-color: #b7b7bd;
+  border-color: var(--ring);
 }
 
 .tile.correct {
@@ -160,14 +185,20 @@ body {
 }
 
 .key {
-  background: var(--panel);
+  background: rgba(255, 255, 255, 0.8);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 12px;
   min-width: 36px;
   font-weight: 600;
   cursor: pointer;
   text-transform: uppercase;
+  box-shadow: 0 6px 16px rgba(31, 28, 22, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.key:hover {
+  transform: translateY(-1px);
 }
 
 .key.wide {
@@ -216,6 +247,7 @@ body {
   display: none;
   flex-direction: column;
   gap: 16px;
+  box-shadow: var(--shadow-soft);
 }
 
 .stats-panel.is-open {
@@ -231,6 +263,7 @@ body {
 .stats-panel__header h2 {
   margin: 0;
   font-size: 1.1rem;
+  letter-spacing: -0.01em;
 }
 
 .stats-close {
@@ -249,10 +282,11 @@ body {
 .stats-toggle {
   display: inline-flex;
   gap: 8px;
-  background: #eef0f4;
+  background: rgba(255, 255, 255, 0.7);
   padding: 6px;
   border-radius: 999px;
   align-self: center;
+  border: 1px solid var(--border);
 }
 
 .stats-toggle__button {
@@ -268,7 +302,7 @@ body {
 .stats-toggle__button.is-active {
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .stats-section__title {
@@ -287,10 +321,11 @@ body {
 }
 
 .stats-card {
-  background: #f8f8fb;
-  border-radius: 12px;
+  background: rgba(250, 248, 244, 0.9);
+  border-radius: 14px;
   padding: 12px;
   text-align: center;
+  border: 1px solid var(--border);
 }
 
 .stats-card__label {
@@ -341,6 +376,7 @@ body {
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.35);
 }
 
 @media (max-width: 480px) {
