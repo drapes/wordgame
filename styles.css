@@ -164,6 +164,13 @@ body {
   justify-content: center;
 }
 
+.grid-wrapper--growth-8 .tile {
+  width: 45px;
+  height: 45px;
+  font-size: 1.2rem;
+  border-radius: 10px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

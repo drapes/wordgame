@@ -182,6 +182,10 @@ function getGrowthRoundWordCount() {
   return GROWTH_STAGES[growthStageIndex] || GROWTH_STAGES[0];
 }
 
+function getGrowthRoundBonusGuesses() {
+  return Math.max(0, growthStageIndex);
+}
+
 function getRoundGuessLimit() {
   return currentMode === "growth" ? growthGuessLimit : MAX_GUESSES;
 }
@@ -648,7 +652,8 @@ function updateGrowthScoreboard() {
 function startGrowthRound() {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
   targetWords = pickUniqueWords(wordBank, getGrowthRoundWordCount());
-  growthGuessLimit = MAX_GUESSES + growthCarryover;
+  growthGuessLimit =
+    MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
   currentGuess = "";
   guesses = [];
   gameOver = false;
@@ -775,7 +780,8 @@ async function resetGame() {
         targetWords = saved.targetWords;
       }
       if (!Number.isInteger(saved.growthGuessLimit)) {
-        growthGuessLimit = MAX_GUESSES + growthCarryover;
+        growthGuessLimit =
+          MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
       }
     }
     if (targetWords.length > 0) {
@@ -838,7 +844,8 @@ async function resetGame() {
     currentDailyKey = null;
   }
   if (currentMode === "growth") {
-    growthGuessLimit = MAX_GUESSES + growthCarryover;
+    growthGuessLimit =
+      MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
     currentGuess = "";
     guesses = [];
     gameOver = false;
