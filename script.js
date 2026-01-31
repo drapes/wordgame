@@ -387,7 +387,11 @@ function saveStats() {
 }
 
 function setStatsMode(mode) {
+  if (window.matchMedia("(max-width: 480px)").matches && mode === "duo") {
+    mode = "daily";
+  }
   statsMode = mode;
+  statsPanel.dataset.statsMode = mode;
   statsModeDailyButton.classList.toggle("is-active", mode === "daily");
   statsModeDuoButton.classList.toggle("is-active", mode === "duo");
   statsModeInfiniteButton.classList.toggle("is-active", mode === "infinite");
