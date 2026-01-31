@@ -180,6 +180,11 @@ function getGrowthRoundWordCount() {
   return GROWTH_STAGES[growthStageIndex] || GROWTH_STAGES[0];
 }
 
+function getGrowthStageIndexForCount(count) {
+  const index = GROWTH_STAGES.indexOf(count);
+  return index === -1 ? 0 : index;
+}
+
 function buildGrid() {
   grid.innerHTML = "";
   gridBoards = [];
@@ -733,7 +738,21 @@ async function resetGame() {
     }
     if (saved && Array.isArray(saved.guesses) && !saved.completed) {
       if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
+        const inferredStage = getGrowthStageIndexForCount(saved.targetWords.length);
+        if (!Number.isInteger(saved.growthStageIndex)) {
+          growthStageIndex = inferredStage;
+        }
         targetWords = saved.targetWords;
+      }
+    }
+    if (targetWords.length > 0) {
+      if (GROWTH_STAGES.includes(targetWords.length)) {
+        growthStageIndex = getGrowthStageIndexForCount(targetWords.length);
+      } else {
+        targetWords = pickUniqueWords(
+          ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS,
+          getGrowthRoundWordCount(),
+        );
       }
     }
     if (targetWords.length > 0 && Array.isArray(saved?.guesses) && !saved.completed) {
