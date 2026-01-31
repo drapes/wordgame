@@ -405,6 +405,15 @@ body {
     grid-template-columns: 1fr;
   }
 
+  #stats-mode-duo {
+    display: none;
+  }
+
+  .stats-panel[data-stats-mode="duo"] .stats-sections,
+  .stats-panel[data-stats-mode="duo"] .stats-distribution {
+    display: none;
+  }
+
   .grid-wrapper {
     flex-direction: column;
   }
