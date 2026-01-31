@@ -82,17 +82,22 @@ const statsSummary = document.getElementById("stats-summary");
 const statsDistribution = document.getElementById("stats-distribution");
 const statsCloseButton = document.getElementById("stats-close");
 const statsModeDailyButton = document.getElementById("stats-mode-daily");
-const statsModeDuoButton = document.getElementById("stats-mode-duo");
+const statsModeGrowthButton = document.getElementById("stats-mode-growth");
 const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
 const statsModeAllButton = document.getElementById("stats-mode-all");
 const modeDailyButton = document.getElementById("mode-daily");
 const modeInfiniteButton = document.getElementById("mode-infinite");
-const modeDuoButton = document.getElementById("mode-duo");
+const modeGrowthButton = document.getElementById("mode-growth");
+const growthScoreboard = document.getElementById("growth-scoreboard");
+const growthScoreboardList = document.getElementById("growth-scoreboard-list");
+const growthScoreboardSubtitle = document.getElementById("growth-scoreboard-subtitle");
 
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
 const INFINITE_COOKIE = "wordgameInfinite";
-const DUO_COOKIE = "wordgameDuo";
+const GROWTH_COOKIE = "wordgameGrowth";
+const LEGACY_DUO_COOKIE = "wordgameDuo";
+const GROWTH_STAGES = [1, 2, 4, 8];
 
 let ANSWER_WORDS = [];
 let GUESS_WORDS = [];
@@ -106,6 +111,8 @@ let statsMode = "all";
 let currentDailyKey = null;
 let gridBoards = [];
 let solvedBoards = [];
+let growthStageIndex = 0;
+let growthScoreboardRounds = [];
 let stats = {
   modes: {
     daily: {
@@ -124,7 +131,7 @@ let stats = {
       currentStreak: 0,
       maxStreak: 0,
     },
-    duo: {
+    growth: {
       gamesPlayed: 0,
       wins: 0,
       distribution: Array(MAX_GUESSES).fill(0),
@@ -152,10 +159,47 @@ function pickWord(wordBank, seed) {
   return wordBank[randomIndex];
 }
 
+function pickUniqueWords(wordBank, count) {
+  const pool = [...wordBank];
+  const picks = [];
+  while (picks.length < count && pool.length > 0) {
+    const choice = pickWord(pool);
+    picks.push(choice);
+    const index = pool.indexOf(choice);
+    if (index !== -1) {
+      pool.splice(index, 1);
+    }
+  }
+  while (picks.length < count) {
+    picks.push(pickWord(wordBank));
+  }
+  return picks;
+}
+
+function getGrowthRoundWordCount() {
+  return GROWTH_STAGES[growthStageIndex] || GROWTH_STAGES[0];
+}
+
+function getGrowthStageIndexForCount(count) {
+  const index = GROWTH_STAGES.indexOf(count);
+  return index === -1 ? 0 : index;
+}
+
 function buildGrid() {
   grid.innerHTML = "";
   gridBoards = [];
-  const boardCount = currentMode === "duo" ? 2 : 1;
+  const boardCount = currentMode === "growth" ? getGrowthRoundWordCount() : 1;
+  grid.classList.remove(
+    "grid-wrapper--growth-row",
+    "grid-wrapper--growth-8",
+  );
+  if (currentMode === "growth") {
+    if (boardCount === 8) {
+      grid.classList.add("grid-wrapper--growth-8");
+    } else if (boardCount === 2 || boardCount === 4) {
+      grid.classList.add("grid-wrapper--growth-row");
+    }
+  }
   for (let boardIndex = 0; boardIndex < boardCount; boardIndex += 1) {
     const board = document.createElement("div");
     board.className = "grid";
@@ -229,7 +273,7 @@ function createStatsStore() {
         currentStreak: 0,
         maxStreak: 0,
       },
-      duo: {
+      growth: {
         ...createEmptyStats(),
         currentStreak: 0,
         maxStreak: 0,
@@ -240,7 +284,7 @@ function createStatsStore() {
 
 function getCombinedStats() {
   const combined = createEmptyStats();
-  const included = ["daily", "infinite"];
+  const included = ["daily", "infinite", "growth"];
   included.forEach((mode) => {
     const modeStats = stats.modes[mode];
     combined.gamesPlayed += modeStats.gamesPlayed;
@@ -282,12 +326,12 @@ function loadInfiniteState() {
   }
 }
 
-function saveDuoState(payload) {
-  writeCookie(DUO_COOKIE, JSON.stringify(payload), 7);
+function saveGrowthState(payload) {
+  writeCookie(GROWTH_COOKIE, JSON.stringify(payload), 7);
 }
 
-function loadDuoState() {
-  const stored = readCookie(DUO_COOKIE);
+function loadGrowthState() {
+  const stored = readCookie(GROWTH_COOKIE) || readCookie(LEGACY_DUO_COOKIE);
   if (!stored) {
     return null;
   }
@@ -322,6 +366,7 @@ function loadStats() {
   try {
     const parsed = JSON.parse(stored);
     if (parsed?.modes?.daily && parsed?.modes?.infinite) {
+      const legacyGrowth = parsed.modes.growth || parsed.modes.duo || {};
       stats = {
         modes: {
           daily: {
@@ -344,14 +389,14 @@ function loadStats() {
             currentStreak: parsed.modes.infinite.currentStreak || 0,
             maxStreak: parsed.modes.infinite.maxStreak || 0,
           },
-          duo: {
-            gamesPlayed: parsed.modes.duo?.gamesPlayed || 0,
-            wins: parsed.modes.duo?.wins || 0,
-            distribution: Array.isArray(parsed.modes.duo?.distribution)
-              ? parsed.modes.duo.distribution.slice(0, MAX_GUESSES)
+          growth: {
+            gamesPlayed: legacyGrowth.gamesPlayed || 0,
+            wins: legacyGrowth.wins || 0,
+            distribution: Array.isArray(legacyGrowth.distribution)
+              ? legacyGrowth.distribution.slice(0, MAX_GUESSES)
               : Array(MAX_GUESSES).fill(0),
-            currentStreak: parsed.modes.duo?.currentStreak || 0,
-            maxStreak: parsed.modes.duo?.maxStreak || 0,
+            currentStreak: legacyGrowth.currentStreak || 0,
+            maxStreak: legacyGrowth.maxStreak || 0,
           },
         },
       };
@@ -387,13 +432,13 @@ function saveStats() {
 }
 
 function setStatsMode(mode) {
-  if (window.matchMedia("(max-width: 480px)").matches && mode === "duo") {
+  if (window.matchMedia("(max-width: 480px)").matches && mode === "growth") {
     mode = "daily";
   }
   statsMode = mode;
   statsPanel.dataset.statsMode = mode;
   statsModeDailyButton.classList.toggle("is-active", mode === "daily");
-  statsModeDuoButton.classList.toggle("is-active", mode === "duo");
+  statsModeGrowthButton.classList.toggle("is-active", mode === "growth");
   statsModeInfiniteButton.classList.toggle("is-active", mode === "infinite");
   statsModeAllButton.classList.toggle("is-active", mode === "all");
   updateStatsPanel();
@@ -404,8 +449,8 @@ function updateStatsPanel() {
   const selectedStats =
     statsMode === "daily"
       ? stats.modes.daily
-      : statsMode === "duo"
-      ? stats.modes.duo
+      : statsMode === "growth"
+      ? stats.modes.growth
       : statsMode === "infinite"
       ? stats.modes.infinite
       : combinedStats;
@@ -460,11 +505,11 @@ function updateStatsPanel() {
 }
 
 function updateNextWordButton() {
-  if (currentMode !== "infinite" && currentMode !== "duo") {
+  if (currentMode !== "infinite" && currentMode !== "growth") {
     newGameButton.style.display = "none";
     return;
   }
-  newGameButton.textContent = currentMode === "duo" ? "Next duo" : "Next word";
+  newGameButton.textContent = currentMode === "growth" ? "Start over" : "Next word";
   newGameButton.style.display = gameOver ? "inline-flex" : "none";
 }
 
@@ -472,8 +517,9 @@ function setMode(mode) {
   currentMode = mode;
   modeDailyButton.classList.toggle("is-active", mode === "daily");
   modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
-  modeDuoButton.classList.toggle("is-active", mode === "duo");
+  modeGrowthButton.classList.toggle("is-active", mode === "growth");
   updateNextWordButton();
+  updateGrowthScoreboard();
   void resetGame();
 }
 
@@ -541,19 +587,76 @@ function renderSavedBoard(savedGuesses) {
   guesses = [];
   solvedBoards = targetWords.map(() => false);
   savedGuesses.forEach((guess, index) => {
+    const results = [];
     targetWords.forEach((target, boardIndex) => {
       const result = scoreGuess(guess, target);
       paintGuess(guess, result, index, boardIndex);
-      if (currentMode === "duo") {
-        updateKeyboardDuo(guess, result, boardIndex);
-      } else {
-        updateKeyboardSingle(guess, result);
-      }
+      results.push(result);
       if (guess === target) {
         solvedBoards[boardIndex] = true;
       }
     });
+    if (currentMode === "growth") {
+      updateKeyboardMulti(guess, results);
+    } else {
+      updateKeyboardSingle(guess, results[0]);
+    }
     guesses.push(guess);
+  });
+}
+
+function getGrowthIntroMessage() {
+  const roundNumber = growthStageIndex + 1;
+  const totalRounds = GROWTH_STAGES.length;
+  const wordCount = getGrowthRoundWordCount();
+  const wordLabel = wordCount === 1 ? "word" : "words";
+  return `Growth mode: Round ${roundNumber} of ${totalRounds}. Guess ${wordCount} ${wordLabel} in six tries.`;
+}
+
+function updateGrowthScoreboard() {
+  if (!growthScoreboard) {
+    return;
+  }
+  const isGrowth = currentMode === "growth";
+  growthScoreboard.classList.toggle("is-visible", isGrowth);
+  if (!isGrowth) {
+    return;
+  }
+  growthScoreboardList.innerHTML = "";
+  if (growthScoreboardRounds.length === 0) {
+    growthScoreboardSubtitle.textContent = "Round progress will appear here.";
+    return;
+  }
+  growthScoreboardSubtitle.textContent = `Completed ${growthScoreboardRounds.length} of ${GROWTH_STAGES.length} rounds.`;
+  growthScoreboardRounds.forEach((round) => {
+    const item = document.createElement("li");
+    const wordLabel = round.words === 1 ? "word" : "words";
+    const guessLabel = round.guesses === 1 ? "guess" : "guesses";
+    item.textContent = `Round ${round.round}: ${round.words} ${wordLabel} in ${round.guesses} ${guessLabel}.`;
+    growthScoreboardList.appendChild(item);
+  });
+}
+
+function startGrowthRound() {
+  const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
+  targetWords = pickUniqueWords(wordBank, getGrowthRoundWordCount());
+  currentGuess = "";
+  guesses = [];
+  gameOver = false;
+  hasRecordedResult = false;
+  solvedBoards = targetWords.map(() => false);
+  buildGrid();
+  buildKeyboard();
+  updateGrowthScoreboard();
+  setStatus(getGrowthIntroMessage(), "neutral");
+  updateNextWordButton();
+  saveGrowthState({
+    mode: currentMode,
+    targetWords,
+    guesses: [],
+    completed: false,
+    growthStageIndex,
+    scoreboard: [...growthScoreboardRounds],
   });
 }
 
@@ -583,7 +686,7 @@ function recordGameResult(won, guessCount) {
   }
   if (currentMode === "daily" && currentDailyKey) {
     updateDailyStreaks(currentDailyKey, won);
-  } else if (currentMode === "infinite" || currentMode === "duo") {
+  } else if (currentMode === "infinite" || currentMode === "growth") {
     modeStats.currentStreak = won ? modeStats.currentStreak + 1 : 0;
     modeStats.maxStreak = Math.max(modeStats.maxStreak, modeStats.currentStreak);
   }
@@ -594,12 +697,14 @@ function recordGameResult(won, guessCount) {
       completed: true,
       guesses: [...guesses],
     });
-  } else if (currentMode === "duo") {
-    saveDuoState({
+  } else if (currentMode === "growth") {
+    saveGrowthState({
       mode: currentMode,
       targetWords,
       guesses: [...guesses],
       completed: true,
+      growthStageIndex,
+      scoreboard: [...growthScoreboardRounds],
     });
   } else if (currentMode === "infinite") {
     saveInfiniteState({
@@ -629,8 +734,61 @@ async function resetGame() {
         saveStats();
       }
     }
+  } else if (currentMode === "growth") {
+    const saved = loadGrowthState();
+    if (saved?.mode === "growth" || saved?.mode === "duo") {
+      if (Number.isInteger(saved.growthStageIndex)) {
+        growthStageIndex = Math.min(
+          Math.max(saved.growthStageIndex, 0),
+          GROWTH_STAGES.length - 1,
+        );
+      }
+      if (Array.isArray(saved.scoreboard)) {
+        growthScoreboardRounds = saved.scoreboard;
+      }
+    }
+    if (saved && Array.isArray(saved.guesses) && !saved.completed) {
+      if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
+        const inferredStage = getGrowthStageIndexForCount(saved.targetWords.length);
+        if (!Number.isInteger(saved.growthStageIndex)) {
+          growthStageIndex = inferredStage;
+        }
+        targetWords = saved.targetWords;
+      }
+    }
+    if (targetWords.length > 0) {
+      if (GROWTH_STAGES.includes(targetWords.length)) {
+        growthStageIndex = getGrowthStageIndexForCount(targetWords.length);
+      } else {
+        targetWords = pickUniqueWords(
+          ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS,
+          getGrowthRoundWordCount(),
+        );
+      }
+    }
+    if (targetWords.length > 0 && Array.isArray(saved?.guesses) && !saved.completed) {
+      guesses = [];
+      currentGuess = "";
+      gameOver = false;
+      hasRecordedResult = false;
+      solvedBoards = targetWords.map(() => false);
+      buildGrid();
+      buildKeyboard();
+      renderSavedBoard(saved.guesses);
+      updateGrowthScoreboard();
+      updateNextWordButton();
+      setStatus(getGrowthIntroMessage(), "neutral");
+      return;
+    }
+    growthStageIndex = 0;
+    growthScoreboardRounds = [];
+    currentDailyKey = null;
+    targetWords = pickUniqueWords(
+      ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS,
+      getGrowthRoundWordCount(),
+    );
   } else {
-    const saved = currentMode === "duo" ? loadDuoState() : loadInfiniteState();
+    const saved = loadInfiniteState();
     if (saved && Array.isArray(saved.guesses) && !saved.completed) {
       if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
         targetWords = saved.targetWords;
@@ -652,18 +810,31 @@ async function resetGame() {
       return;
     }
     const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
-    if (currentMode === "duo") {
-      const first = pickWord(wordBank);
-      let second = pickWord(wordBank);
-      while (second === first && wordBank.length > 1) {
-        second = pickWord(wordBank);
-      }
-      targetWords = [first, second];
-    } else {
-      targetWords = [pickWord(wordBank)];
-    }
+    targetWords = [pickWord(wordBank)];
     currentDailyKey = null;
   }
+  if (currentMode === "growth") {
+    currentGuess = "";
+    guesses = [];
+    gameOver = false;
+    hasRecordedResult = false;
+    solvedBoards = targetWords.map(() => false);
+    buildGrid();
+    buildKeyboard();
+    updateGrowthScoreboard();
+    setStatus(getGrowthIntroMessage(), "neutral");
+    updateNextWordButton();
+    saveGrowthState({
+      mode: currentMode,
+      targetWords,
+      guesses: [],
+      completed: false,
+      growthStageIndex,
+      scoreboard: [...growthScoreboardRounds],
+    });
+    return;
+  }
+
   currentGuess = "";
   guesses = [];
   gameOver = false;
@@ -689,20 +860,10 @@ async function resetGame() {
 
   buildGrid();
   buildKeyboard();
-  const introMessage =
-    currentMode === "duo"
-      ? "Guess both 5-letter words in six tries."
-      : "Guess the 5-letter word in six tries.";
+  const introMessage = "Guess the 5-letter word in six tries.";
   setStatus(introMessage);
   updateNextWordButton();
-  if (currentMode === "duo") {
-    saveDuoState({
-      mode: currentMode,
-      targetWords,
-      guesses: [],
-      completed: false,
-    });
-  } else if (currentMode === "infinite") {
+  if (currentMode === "infinite") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -772,7 +933,7 @@ function handleKey(key) {
 function updateBoard() {
   const rowIndex = guesses.length;
   gridBoards.forEach((board) => {
-    if (currentMode === "duo") {
+    if (currentMode === "growth") {
       const boardIndex = Number(board.dataset.board);
       if (solvedBoards[boardIndex]) {
         return;
@@ -816,7 +977,7 @@ function scoreGuess(guess, target) {
 }
 
 function paintGuess(guess, result, rowIndex, boardIndex = 0) {
-  if (currentMode === "duo" && solvedBoards[boardIndex]) {
+  if (currentMode === "growth" && solvedBoards[boardIndex]) {
     return;
   }
   const board = gridBoards[boardIndex];
@@ -896,6 +1057,43 @@ function updateKeyboardSingle(guess, result) {
   });
 }
 
+function updateKeyboardMulti(guess, results) {
+  const bestStatuses = {};
+  results.forEach((result) => {
+    result.forEach((status, index) => {
+      const letter = guess[index];
+      if (!letter) {
+        return;
+      }
+      if (!bestStatuses[letter] || getStatusRank(status) > getStatusRank(bestStatuses[letter])) {
+        bestStatuses[letter] = status;
+      }
+    });
+  });
+  Object.entries(bestStatuses).forEach(([letter, status]) => {
+    const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
+    if (!key) {
+      return;
+    }
+    const currentClass = key.classList.contains("correct")
+      ? "correct"
+      : key.classList.contains("present")
+      ? "present"
+      : key.classList.contains("absent")
+      ? "absent"
+      : "";
+    if (getStatusRank(currentClass) > getStatusRank(status)) {
+      return;
+    }
+    key.classList.remove("present", "absent", "correct", "split");
+    key.style.removeProperty("--left-color");
+    key.style.removeProperty("--right-color");
+    if (status) {
+      key.classList.add(status);
+    }
+  });
+}
+
 function updateKeyboardDuo(guess, result, boardIndex) {
   const side = boardIndex === 0 ? "left" : "right";
   guess.split("").forEach((letter, index) => {
@@ -933,21 +1131,23 @@ function submitGuess() {
     return;
   }
 
+  const roundResults = [];
   targetWords.forEach((target, boardIndex) => {
-    if (currentMode === "duo" && solvedBoards[boardIndex]) {
+    if (currentMode === "growth" && solvedBoards[boardIndex]) {
       return;
     }
     const result = scoreGuess(currentGuess, target);
     paintGuess(currentGuess, result, guesses.length, boardIndex);
-    if (currentMode === "duo") {
-      updateKeyboardDuo(currentGuess, result, boardIndex);
-    } else {
-      updateKeyboardSingle(currentGuess, result);
-    }
+    roundResults.push(result);
     if (currentGuess === target) {
       solvedBoards[boardIndex] = true;
     }
   });
+  if (currentMode === "growth") {
+    updateKeyboardMulti(currentGuess, roundResults);
+  } else {
+    updateKeyboardSingle(currentGuess, roundResults[0]);
+  }
   guesses.push(currentGuess);
   if (currentMode === "daily" && currentDailyKey) {
     saveDailyState({
@@ -955,12 +1155,14 @@ function submitGuess() {
       completed: false,
       guesses: [...guesses],
     });
-  } else if (currentMode === "duo") {
-    saveDuoState({
+  } else if (currentMode === "growth") {
+    saveGrowthState({
       mode: currentMode,
       targetWords,
       guesses: [...guesses],
       completed: false,
+      growthStageIndex,
+      scoreboard: [...growthScoreboardRounds],
     });
   } else if (currentMode === "infinite") {
     saveInfiniteState({
@@ -973,6 +1175,24 @@ function submitGuess() {
 
   const allSolved = solvedBoards.length > 0 && solvedBoards.every(Boolean);
   if (allSolved) {
+    if (currentMode === "growth") {
+      const currentRound = getGrowthRoundWordCount();
+      growthScoreboardRounds = [
+        ...growthScoreboardRounds,
+        { round: growthStageIndex + 1, words: currentRound, guesses: guesses.length },
+      ];
+      updateGrowthScoreboard();
+      const isFinalRound = growthStageIndex >= GROWTH_STAGES.length - 1;
+      if (isFinalRound) {
+        setStatus("Growth complete! You conquered all 8 words.", "success");
+        gameOver = true;
+        recordGameResult(true, guesses.length);
+        return;
+      }
+      growthStageIndex += 1;
+      startGrowthRound();
+      return;
+    }
     setStatus("Nice! You solved it.", "success");
     gameOver = true;
     recordGameResult(true, guesses.length);
@@ -1016,9 +1236,9 @@ statsModeDailyButton.addEventListener("click", () => {
   setStatsMode("daily");
   statsModeDailyButton.blur();
 });
-statsModeDuoButton.addEventListener("click", () => {
-  setStatsMode("duo");
-  statsModeDuoButton.blur();
+statsModeGrowthButton.addEventListener("click", () => {
+  setStatsMode("growth");
+  statsModeGrowthButton.blur();
 });
 statsModeInfiniteButton.addEventListener("click", () => {
   setStatsMode("infinite");
@@ -1036,9 +1256,9 @@ modeInfiniteButton.addEventListener("click", () => {
   setMode("infinite");
   modeInfiniteButton.blur();
 });
-modeDuoButton.addEventListener("click", () => {
-  setMode("duo");
-  modeDuoButton.blur();
+modeGrowthButton.addEventListener("click", () => {
+  setMode("growth");
+  modeGrowthButton.blur();
 });
 newGameButton.addEventListener("click", () => {
   void resetGame();
