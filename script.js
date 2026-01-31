@@ -630,8 +630,10 @@ function updateGrowthScoreboard() {
     return;
   }
   const isGrowth = currentMode === "growth";
-  growthScoreboard.classList.toggle("is-visible", isGrowth);
-  if (!isGrowth) {
+  const shouldShow =
+    isGrowth && (growthStageIndex > 0 || growthScoreboardRounds.length > 0);
+  growthScoreboard.classList.toggle("is-visible", shouldShow);
+  if (!shouldShow) {
     return;
   }
   growthScoreboardList.innerHTML = "";
@@ -642,9 +644,8 @@ function updateGrowthScoreboard() {
   growthScoreboardSubtitle.textContent = `Completed ${growthScoreboardRounds.length} of ${GROWTH_STAGES.length} rounds.`;
   growthScoreboardRounds.forEach((round) => {
     const item = document.createElement("li");
-    const wordLabel = round.words === 1 ? "word" : "words";
     const guessLabel = round.guesses === 1 ? "guess" : "guesses";
-    item.textContent = `Round ${round.round}: ${round.words} ${wordLabel} in ${round.guesses} ${guessLabel}.`;
+    item.textContent = `Round ${round.round}: ${round.guesses} ${guessLabel}.`;
     growthScoreboardList.appendChild(item);
   });
 }

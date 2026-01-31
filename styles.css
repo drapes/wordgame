@@ -164,6 +164,12 @@ body {
   justify-content: center;
 }
 
+@media (min-width: 2400px) {
+  .grid-wrapper--growth-8 {
+    grid-template-columns: repeat(8, max-content);
+  }
+}
+
 .grid-wrapper--growth-8 .tile {
   width: 45px;
   height: 45px;
@@ -301,6 +307,11 @@ body {
   flex-direction: column;
   gap: 12px;
   box-shadow: var(--shadow-card);
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  max-width: min(280px, 80vw);
+  z-index: 5;
 }
 
 .growth-scoreboard.is-visible {
