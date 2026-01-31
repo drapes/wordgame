@@ -26,12 +26,33 @@
             ∞
           </button>
           <button
-            class="mode-toggle__button mode-toggle__button--duo"
+            class="mode-toggle__button mode-toggle__button--growth"
             type="button"
-            data-mode="duo"
-            id="mode-duo"
+            data-mode="growth"
+            id="mode-growth"
           >
-            ∞∞
+            <span class="growth-toggle">
+              <span class="growth-toggle__icon" aria-hidden="true">
+                <span class="growth-toggle__column">
+                  <span class="growth-toggle__pixel"></span>
+                </span>
+                <span class="growth-toggle__column">
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                </span>
+                <span class="growth-toggle__column">
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                </span>
+                <span class="growth-toggle__column">
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                  <span class="growth-toggle__pixel"></span>
+                </span>
+              </span>
+            </span>
           </button>
         </div>
       </header>
@@ -50,6 +71,16 @@
         <button id="new-game" type="button">New word</button>
       </section>
 
+      <section class="growth-scoreboard" id="growth-scoreboard" aria-label="Growth mode scoreboard">
+        <div class="growth-scoreboard__header">
+          <h2>Growth scoreboard</h2>
+          <p class="growth-scoreboard__subtitle" id="growth-scoreboard-subtitle">
+            Round progress will appear here.
+          </p>
+        </div>
+        <ol class="growth-scoreboard__list" id="growth-scoreboard-list"></ol>
+      </section>
+
       <section class="stats-panel" id="stats-panel" aria-hidden="true" aria-label="Game statistics">
         <div class="stats-panel__header">
           <h2>Statistics</h2>
@@ -59,8 +90,13 @@
           <button class="stats-toggle__button" type="button" data-stats-mode="daily" id="stats-mode-daily">
             Daily
           </button>
-          <button class="stats-toggle__button" type="button" data-stats-mode="duo" id="stats-mode-duo">
-            ∞∞
+          <button
+            class="stats-toggle__button"
+            type="button"
+            data-stats-mode="growth"
+            id="stats-mode-growth"
+          >
+            Growth
           </button>
           <button
             class="stats-toggle__button"
