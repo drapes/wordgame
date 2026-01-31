@@ -153,6 +153,16 @@ body {
   flex-wrap: wrap;
 }
 
+.grid-wrapper--growth-row {
+  flex-wrap: nowrap;
+}
+
+.grid-wrapper--growth-8 {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  justify-content: center;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

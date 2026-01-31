@@ -189,6 +189,17 @@ function buildGrid() {
   grid.innerHTML = "";
   gridBoards = [];
   const boardCount = currentMode === "growth" ? getGrowthRoundWordCount() : 1;
+  grid.classList.remove(
+    "grid-wrapper--growth-row",
+    "grid-wrapper--growth-8",
+  );
+  if (currentMode === "growth") {
+    if (boardCount === 8) {
+      grid.classList.add("grid-wrapper--growth-8");
+    } else if (boardCount === 2 || boardCount === 4) {
+      grid.classList.add("grid-wrapper--growth-row");
+    }
+  }
   for (let boardIndex = 0; boardIndex < boardCount; boardIndex += 1) {
     const board = document.createElement("div");
     board.className = "grid";
