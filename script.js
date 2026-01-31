@@ -113,6 +113,8 @@ let gridBoards = [];
 let solvedBoards = [];
 let growthStageIndex = 0;
 let growthScoreboardRounds = [];
+let growthGuessLimit = MAX_GUESSES;
+let growthCarryover = 0;
 let stats = {
   modes: {
     daily: {
@@ -180,6 +182,14 @@ function getGrowthRoundWordCount() {
   return GROWTH_STAGES[growthStageIndex] || GROWTH_STAGES[0];
 }
 
+function getGrowthRoundBonusGuesses() {
+  return Math.max(0, growthStageIndex);
+}
+
+function getRoundGuessLimit() {
+  return currentMode === "growth" ? growthGuessLimit : MAX_GUESSES;
+}
+
 function getGrowthStageIndexForCount(count) {
   const index = GROWTH_STAGES.indexOf(count);
   return index === -1 ? 0 : index;
@@ -189,6 +199,7 @@ function buildGrid() {
   grid.innerHTML = "";
   gridBoards = [];
   const boardCount = currentMode === "growth" ? getGrowthRoundWordCount() : 1;
+  const guessLimit = getRoundGuessLimit();
   grid.classList.remove(
     "grid-wrapper--growth-row",
     "grid-wrapper--growth-8",
@@ -204,7 +215,7 @@ function buildGrid() {
     const board = document.createElement("div");
     board.className = "grid";
     board.dataset.board = boardIndex;
-    for (let row = 0; row < MAX_GUESSES; row += 1) {
+    for (let row = 0; row < guessLimit; row += 1) {
       for (let col = 0; col < WORD_LENGTH; col += 1) {
         const tile = document.createElement("div");
         tile.className = "tile";
@@ -610,7 +621,8 @@ function getGrowthIntroMessage() {
   const totalRounds = GROWTH_STAGES.length;
   const wordCount = getGrowthRoundWordCount();
   const wordLabel = wordCount === 1 ? "word" : "words";
-  return `Growth mode: Round ${roundNumber} of ${totalRounds}. Guess ${wordCount} ${wordLabel} in six tries.`;
+  const guessLabel = growthGuessLimit === 1 ? "try" : "tries";
+  return `Growth mode: Round ${roundNumber} of ${totalRounds}. Guess ${wordCount} ${wordLabel} in ${growthGuessLimit} ${guessLabel}.`;
 }
 
 function updateGrowthScoreboard() {
@@ -640,6 +652,8 @@ function updateGrowthScoreboard() {
 function startGrowthRound() {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
   targetWords = pickUniqueWords(wordBank, getGrowthRoundWordCount());
+  growthGuessLimit =
+    MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
   currentGuess = "";
   guesses = [];
   gameOver = false;
@@ -656,6 +670,8 @@ function startGrowthRound() {
     guesses: [],
     completed: false,
     growthStageIndex,
+    growthGuessLimit,
+    growthCarryover,
     scoreboard: [...growthScoreboardRounds],
   });
 }
@@ -704,6 +720,8 @@ function recordGameResult(won, guessCount) {
       guesses: [...guesses],
       completed: true,
       growthStageIndex,
+      growthGuessLimit,
+      growthCarryover,
       scoreboard: [...growthScoreboardRounds],
     });
   } else if (currentMode === "infinite") {
@@ -746,6 +764,12 @@ async function resetGame() {
       if (Array.isArray(saved.scoreboard)) {
         growthScoreboardRounds = saved.scoreboard;
       }
+      if (Number.isInteger(saved.growthGuessLimit)) {
+        growthGuessLimit = saved.growthGuessLimit;
+      }
+      if (Number.isInteger(saved.growthCarryover)) {
+        growthCarryover = saved.growthCarryover;
+      }
     }
     if (saved && Array.isArray(saved.guesses) && !saved.completed) {
       if (Array.isArray(saved.targetWords) && saved.targetWords.length > 0) {
@@ -754,6 +778,10 @@ async function resetGame() {
           growthStageIndex = inferredStage;
         }
         targetWords = saved.targetWords;
+      }
+      if (!Number.isInteger(saved.growthGuessLimit)) {
+        growthGuessLimit =
+          MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
       }
     }
     if (targetWords.length > 0) {
@@ -782,6 +810,8 @@ async function resetGame() {
     }
     growthStageIndex = 0;
     growthScoreboardRounds = [];
+    growthCarryover = 0;
+    growthGuessLimit = MAX_GUESSES;
     currentDailyKey = null;
     targetWords = pickUniqueWords(
       ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS,
@@ -814,6 +844,8 @@ async function resetGame() {
     currentDailyKey = null;
   }
   if (currentMode === "growth") {
+    growthGuessLimit =
+      MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
     currentGuess = "";
     guesses = [];
     gameOver = false;
@@ -830,6 +862,8 @@ async function resetGame() {
       guesses: [],
       completed: false,
       growthStageIndex,
+      growthGuessLimit,
+      growthCarryover,
       scoreboard: [...growthScoreboardRounds],
     });
     return;
@@ -1162,6 +1196,8 @@ function submitGuess() {
       guesses: [...guesses],
       completed: false,
       growthStageIndex,
+      growthGuessLimit,
+      growthCarryover,
       scoreboard: [...growthScoreboardRounds],
     });
   } else if (currentMode === "infinite") {
@@ -1189,6 +1225,7 @@ function submitGuess() {
         recordGameResult(true, guesses.length);
         return;
       }
+      growthCarryover = Math.max(0, growthGuessLimit - guesses.length);
       growthStageIndex += 1;
       startGrowthRound();
       return;
@@ -1199,7 +1236,7 @@ function submitGuess() {
     return;
   }
 
-  if (guesses.length >= MAX_GUESSES) {
+  if (guesses.length >= getRoundGuessLimit()) {
     const reveal = targetWords.map((word) => word.toUpperCase()).join(" / ");
     setStatus(`Out of guesses! The word was ${reveal}.`, "error");
     gameOver = true;
