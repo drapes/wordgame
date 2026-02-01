@@ -262,6 +262,10 @@ function buildKeyboard() {
         key.classList.remove("key--segmented");
         key.style.removeProperty("--segment-count");
         key.style.removeProperty("background");
+        key.style.removeProperty("background-image");
+        key.style.removeProperty("background-size");
+        key.style.removeProperty("background-position");
+        key.style.removeProperty("background-repeat");
         key.style.removeProperty("color");
       }
       key.dataset.key = letter;
@@ -1108,17 +1112,46 @@ function setSegmentStatus(key, index, status) {
 function updateKeySegmentBackground(key, segmentCount) {
   const stops = [];
   let hasStatus = false;
+  const colors = [];
   for (let i = 0; i < segmentCount; i += 1) {
     const status = getSegmentStatus(key, i);
     if (status) {
       hasStatus = true;
     }
     const color = statusColor(status);
+    colors.push(color);
     const start = (i / segmentCount) * 100;
     const end = ((i + 1) / segmentCount) * 100;
     stops.push(`${color} ${start}% ${end}%`);
   }
-  key.style.background = `linear-gradient(90deg, ${stops.join(", ")})`;
+  if (segmentCount === 4) {
+    const layers = colors
+      .map((color) => `linear-gradient(${color}, ${color})`)
+      .join(", ");
+    key.style.backgroundImage = layers;
+    key.style.backgroundSize = "50% 50%";
+    key.style.backgroundPosition = "0 0, 0 100%, 100% 0, 100% 100%";
+    key.style.backgroundRepeat = "no-repeat";
+  } else if (segmentCount === 8) {
+    const layers = colors
+      .map((color) => `linear-gradient(${color}, ${color})`)
+      .join(", ");
+    key.style.backgroundImage = layers;
+    key.style.backgroundSize = "50% 25%";
+    key.style.backgroundPosition =
+      "0 0, 0 25%, 0 50%, 0 75%, 100% 0, 100% 25%, 100% 50%, 100% 75%";
+    key.style.backgroundRepeat = "no-repeat";
+  } else if (segmentCount > 1) {
+    key.style.backgroundImage = `linear-gradient(90deg, ${stops.join(", ")})`;
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+  } else {
+    key.style.removeProperty("background-image");
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+  }
   key.style.color = hasStatus ? "#fff" : "var(--text)";
 }
 
