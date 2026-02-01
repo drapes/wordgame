@@ -231,6 +231,13 @@ function buildGrid() {
 
 function buildKeyboard() {
   keyboard.innerHTML = "";
+  const segmentCount = getKeyboardSegmentCount();
+  keyboard.classList.toggle("keyboard--segmented", segmentCount > 1);
+  if (segmentCount > 1) {
+    keyboard.dataset.segments = String(segmentCount);
+  } else {
+    keyboard.removeAttribute("data-segments");
+  }
   keyboardRows.forEach((row, rowIndex) => {
     const rowContainer = document.createElement("div");
     rowContainer.className = "keyboard-row";
@@ -246,6 +253,20 @@ function buildKeyboard() {
       }
       if (letter === "back") {
         key.classList.add("wide");
+      }
+      if (segmentCount > 1) {
+        key.classList.add("key--segmented");
+        key.style.setProperty("--segment-count", segmentCount);
+        updateKeySegmentBackground(key, segmentCount);
+      } else {
+        key.classList.remove("key--segmented");
+        key.style.removeProperty("--segment-count");
+        key.style.removeProperty("background");
+        key.style.removeProperty("background-image");
+        key.style.removeProperty("background-size");
+        key.style.removeProperty("background-position");
+        key.style.removeProperty("background-repeat");
+        key.style.removeProperty("color");
       }
       key.dataset.key = letter;
       key.textContent = letter === "back" ? "⌫" : letter;
@@ -608,7 +629,16 @@ function renderSavedBoard(savedGuesses) {
       }
     });
     if (currentMode === "growth") {
-      updateKeyboardMulti(guess, results);
+      const segmentCount = getKeyboardSegmentCount();
+      if (segmentCount > 1) {
+        results.forEach((result, boardIndex) => {
+          if (result) {
+            updateKeyboardSegmented(guess, result, boardIndex, segmentCount);
+          }
+        });
+      } else {
+        updateKeyboardSingle(guess, results[0]);
+      }
     } else {
       updateKeyboardSingle(guess, results[0]);
     }
@@ -1026,6 +1056,13 @@ function paintGuess(guess, result, rowIndex, boardIndex = 0) {
   }
 }
 
+function getKeyboardSegmentCount() {
+  if (currentMode !== "growth") {
+    return 1;
+  }
+  return Math.max(1, targetWords.length);
+}
+
 function getKeyStatus(key, side) {
   return side === "left" ? key.dataset.leftStatus || "" : key.dataset.rightStatus || "";
 }
@@ -1064,6 +1101,66 @@ function statusColor(status) {
   return "var(--border)";
 }
 
+function getSegmentStatus(key, index) {
+  return key.dataset[`segmentStatus${index}`] || "";
+}
+
+function setSegmentStatus(key, index, status) {
+  key.dataset[`segmentStatus${index}`] = status;
+}
+
+function updateKeySegmentBackground(key, segmentCount) {
+  const stops = [];
+  let hasStatus = false;
+  const colors = [];
+  for (let i = 0; i < segmentCount; i += 1) {
+    const status = getSegmentStatus(key, i);
+    if (status) {
+      hasStatus = true;
+    }
+    const color = statusColor(status);
+    colors.push(color);
+    const start = (i / segmentCount) * 100;
+    const end = ((i + 1) / segmentCount) * 100;
+    stops.push(`${color} ${start}% ${end}%`);
+  }
+  if (!hasStatus) {
+    key.style.removeProperty("background-image");
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+    key.style.removeProperty("background-color");
+    key.style.color = "var(--text)";
+    return;
+  }
+  if (segmentCount === 4) {
+    const left = `linear-gradient(180deg, ${colors[0]} 0 50%, ${colors[1]} 50% 100%)`;
+    const right = `linear-gradient(180deg, ${colors[2]} 0 50%, ${colors[3]} 50% 100%)`;
+    key.style.backgroundImage = `${left}, ${right}`;
+    key.style.backgroundSize = "50% 100%";
+    key.style.backgroundPosition = "0 0, 100% 0";
+    key.style.backgroundRepeat = "no-repeat";
+  } else if (segmentCount === 8) {
+    const left = `linear-gradient(180deg, ${colors[0]} 0 25%, ${colors[1]} 25% 50%, ${colors[2]} 50% 75%, ${colors[3]} 75% 100%)`;
+    const right = `linear-gradient(180deg, ${colors[4]} 0 25%, ${colors[5]} 25% 50%, ${colors[6]} 50% 75%, ${colors[7]} 75% 100%)`;
+    key.style.backgroundImage = `${left}, ${right}`;
+    key.style.backgroundSize = "50% 100%";
+    key.style.backgroundPosition = "0 0, 100% 0";
+    key.style.backgroundRepeat = "no-repeat";
+  } else if (segmentCount > 1) {
+    key.style.backgroundImage = `linear-gradient(90deg, ${stops.join(", ")})`;
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+  } else {
+    key.style.removeProperty("background-image");
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+  }
+  key.style.color = hasStatus ? "#fff" : "var(--text)";
+}
+
 function updateKeyboardSingle(guess, result) {
   guess.split("").forEach((letter, index) => {
     const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
@@ -1089,6 +1186,23 @@ function updateKeyboardSingle(guess, result) {
     if (nextClass !== "absent" || currentClass === "") {
       key.classList.add(nextClass);
     }
+  });
+}
+
+function updateKeyboardSegmented(guess, result, boardIndex, segmentCount) {
+  guess.split("").forEach((letter, index) => {
+    const key = keyboard.querySelector(`.key[data-key="${letter}"]`);
+    if (!key) {
+      return;
+    }
+    const currentStatus = getSegmentStatus(key, boardIndex);
+    const nextStatus = result[index];
+    if (getStatusRank(nextStatus) < getStatusRank(currentStatus)) {
+      return;
+    }
+    setSegmentStatus(key, boardIndex, nextStatus);
+    key.classList.remove("present", "absent", "correct", "split");
+    updateKeySegmentBackground(key, segmentCount);
   });
 }
 
@@ -1168,9 +1282,6 @@ function submitGuess() {
 
   const roundResults = [];
   targetWords.forEach((target, boardIndex) => {
-    if (currentMode === "growth" && solvedBoards[boardIndex]) {
-      return;
-    }
     const result = scoreGuess(currentGuess, target);
     paintGuess(currentGuess, result, guesses.length, boardIndex);
     roundResults.push(result);
@@ -1179,7 +1290,16 @@ function submitGuess() {
     }
   });
   if (currentMode === "growth") {
-    updateKeyboardMulti(currentGuess, roundResults);
+    const segmentCount = getKeyboardSegmentCount();
+    if (segmentCount > 1) {
+      roundResults.forEach((result, boardIndex) => {
+        if (result) {
+          updateKeyboardSegmented(currentGuess, result, boardIndex, segmentCount);
+        }
+      });
+    } else {
+      updateKeyboardSingle(currentGuess, roundResults[0]);
+    }
   } else {
     updateKeyboardSingle(currentGuess, roundResults[0]);
   }
