@@ -233,6 +233,10 @@ body {
   gap: 8px;
 }
 
+.keyboard--segmented .key {
+  border-color: transparent;
+}
+
 .keyboard-row {
   display: flex;
   justify-content: center;
@@ -273,6 +277,10 @@ body {
   background: var(--green);
   color: #fff;
   border-color: var(--green);
+}
+
+.key--segmented {
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .key.split {
@@ -483,6 +491,35 @@ body {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(29, 78, 216, 0.35);
+}
+
+@media (min-width: 2400px) and (min-height: 900px) {
+  .keyboard {
+    gap: 12px;
+  }
+
+  .keyboard-row {
+    gap: 10px;
+  }
+
+  .keyboard-row--offset {
+    padding-left: 30px;
+  }
+
+  .key {
+    min-width: 48px;
+    padding: 14px 18px;
+    font-size: 1.05rem;
+    border-radius: 14px;
+  }
+
+  .key.wide {
+    min-width: 92px;
+  }
+
+  .key--enter {
+    min-width: 70px;
+  }
 }
 
 @media (max-width: 480px) {
