@@ -1124,22 +1124,28 @@ function updateKeySegmentBackground(key, segmentCount) {
     const end = ((i + 1) / segmentCount) * 100;
     stops.push(`${color} ${start}% ${end}%`);
   }
+  if (!hasStatus) {
+    key.style.removeProperty("background-image");
+    key.style.removeProperty("background-size");
+    key.style.removeProperty("background-position");
+    key.style.removeProperty("background-repeat");
+    key.style.removeProperty("background-color");
+    key.style.color = "var(--text)";
+    return;
+  }
   if (segmentCount === 4) {
-    const layers = colors
-      .map((color) => `linear-gradient(${color}, ${color})`)
-      .join(", ");
-    key.style.backgroundImage = layers;
-    key.style.backgroundSize = "50% 50%";
-    key.style.backgroundPosition = "0 0, 0 100%, 100% 0, 100% 100%";
+    const left = `linear-gradient(180deg, ${colors[0]} 0 50%, ${colors[1]} 50% 100%)`;
+    const right = `linear-gradient(180deg, ${colors[2]} 0 50%, ${colors[3]} 50% 100%)`;
+    key.style.backgroundImage = `${left}, ${right}`;
+    key.style.backgroundSize = "50% 100%";
+    key.style.backgroundPosition = "0 0, 100% 0";
     key.style.backgroundRepeat = "no-repeat";
   } else if (segmentCount === 8) {
-    const layers = colors
-      .map((color) => `linear-gradient(${color}, ${color})`)
-      .join(", ");
-    key.style.backgroundImage = layers;
-    key.style.backgroundSize = "50% 25%";
-    key.style.backgroundPosition =
-      "0 0, 0 25%, 0 50%, 0 75%, 100% 0, 100% 25%, 100% 50%, 100% 75%";
+    const left = `linear-gradient(180deg, ${colors[0]} 0 25%, ${colors[1]} 25% 50%, ${colors[2]} 50% 75%, ${colors[3]} 75% 100%)`;
+    const right = `linear-gradient(180deg, ${colors[4]} 0 25%, ${colors[5]} 25% 50%, ${colors[6]} 50% 75%, ${colors[7]} 75% 100%)`;
+    key.style.backgroundImage = `${left}, ${right}`;
+    key.style.backgroundSize = "50% 100%";
+    key.style.backgroundPosition = "0 0, 100% 0";
     key.style.backgroundRepeat = "no-repeat";
   } else if (segmentCount > 1) {
     key.style.backgroundImage = `linear-gradient(90deg, ${stops.join(", ")})`;

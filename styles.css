@@ -164,17 +164,17 @@ body {
   justify-content: center;
 }
 
-@media (min-width: 2400px) {
+@media (min-width: 1920px) {
   .grid-wrapper--growth-8 {
     grid-template-columns: repeat(8, max-content);
   }
 }
 
 .grid-wrapper--growth-8 .tile {
-  width: 45px;
-  height: 45px;
-  font-size: 1.2rem;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  font-size: 0.96rem;
+  border-radius: 8px;
 }
 
 .grid {
@@ -184,21 +184,21 @@ body {
 }
 
 .grid-wrapper--growth-row .tile {
-  width: 54px;
-  height: 54px;
-  font-size: 1.44rem;
-  border-radius: 13px;
+  width: 43px;
+  height: 43px;
+  font-size: 1.15rem;
+  border-radius: 10px;
 }
 
 .tile {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 11px;
   display: grid;
   place-items: center;
-  font-size: 1.6rem;
+  font-size: 1.28rem;
   font-weight: 700;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(31, 28, 22, 0.08);
@@ -436,7 +436,7 @@ body {
 
 .stats-card {
   background: rgba(250, 248, 244, 0.9);
-  border-radius: 14px;
+  border-radius: 11px;
   padding: 12px;
   text-align: center;
   border: 1px solid var(--border);
