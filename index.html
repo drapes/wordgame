@@ -18,45 +18,31 @@
             📊
           </button>
         </div>
-        <div class="mode-toggle" role="group" aria-label="Game mode">
-          <button class="mode-toggle__button" type="button" data-mode="daily" id="mode-daily">
-            Daily
-          </button>
-          <button class="mode-toggle__button" type="button" data-mode="infinite" id="mode-infinite">
-            ∞
-          </button>
-          <button class="mode-toggle__button" type="button" data-mode="timed" id="mode-timed">
-            <span class="clock-icon" aria-hidden="true"></span>
-          </button>
-          <button
-            class="mode-toggle__button mode-toggle__button--growth"
-            type="button"
-            data-mode="growth"
-            id="mode-growth"
-          >
-            <span class="growth-toggle">
-              <span class="growth-toggle__icon" aria-hidden="true">
-                <span class="growth-toggle__column">
-                  <span class="growth-toggle__pixel"></span>
-                </span>
-                <span class="growth-toggle__column">
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                </span>
-                <span class="growth-toggle__column">
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                </span>
-                <span class="growth-toggle__column">
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                  <span class="growth-toggle__pixel"></span>
-                </span>
-              </span>
-            </span>
-          </button>
+        <div class="mode-toggle-group">
+          <div class="mode-toggle" role="group" aria-label="Game mode">
+            <button class="mode-toggle__button" type="button" data-mode="classic" id="mode-classic">
+              Classic
+            </button>
+            <button class="mode-toggle__button" type="button" data-mode="growth" id="mode-growth">
+              Growth
+            </button>
+            <button class="mode-toggle__button" type="button" data-mode="timed" id="mode-timed">
+              Timed
+            </button>
+          </div>
+          <div class="mode-toggle mode-toggle--variant" role="group" aria-label="Game cadence">
+            <button class="mode-toggle__button" type="button" data-cadence="daily" id="cadence-daily">
+              Daily
+            </button>
+            <button
+              class="mode-toggle__button"
+              type="button"
+              data-cadence="infinite"
+              id="cadence-infinite"
+            >
+              Infinite
+            </button>
+          </div>
         </div>
       </header>
 
