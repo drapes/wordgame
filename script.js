@@ -1282,9 +1282,6 @@ function submitGuess() {
 
   const roundResults = [];
   targetWords.forEach((target, boardIndex) => {
-    if (currentMode === "growth" && solvedBoards[boardIndex]) {
-      return;
-    }
     const result = scoreGuess(currentGuess, target);
     paintGuess(currentGuess, result, guesses.length, boardIndex);
     roundResults.push(result);
