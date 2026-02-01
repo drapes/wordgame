@@ -1889,9 +1889,9 @@ document.addEventListener("keydown", handlePhysicalKey);
 loadStats();
 setStatsMode(statsMode);
 setStatus("Loading word lists...");
+setCadence(currentCadence, { skipReset: true });
+setMode(currentMode);
 loadWordLists().then((loaded) => {
-  setCadence(currentCadence, { skipReset: true });
-  setMode(currentMode);
   if (!loaded) {
     if (!(isDailyMode() && gameOver)) {
       setStatus("Using the built-in word list. (Word list download failed.)", "warning");
