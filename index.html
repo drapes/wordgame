@@ -25,6 +25,9 @@
           <button class="mode-toggle__button" type="button" data-mode="infinite" id="mode-infinite">
             ∞
           </button>
+          <button class="mode-toggle__button" type="button" data-mode="timed" id="mode-timed">
+            <span class="clock-icon" aria-hidden="true"></span>
+          </button>
           <button
             class="mode-toggle__button mode-toggle__button--growth"
             type="button"
@@ -59,6 +62,17 @@
 
       <section class="status" aria-live="polite">
         <p id="status-message">Guess the 5-letter word in six tries.</p>
+      </section>
+
+      <section class="timed-hud" id="timed-hud" aria-live="polite">
+        <div class="timed-hud__timer">
+          <span class="timed-hud__label">Time</span>
+          <span class="timed-hud__value" id="timed-timer">1:00</span>
+        </div>
+        <div class="timed-hud__score" id="timed-score" hidden>
+          <span class="timed-hud__label">Words</span>
+          <span class="timed-hud__value" id="timed-score-value">0</span>
+        </div>
       </section>
 
       <section class="board" aria-label="Word grid">
