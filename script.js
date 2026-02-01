@@ -7,6 +7,8 @@ const TIMED_BONUS = {
   correct: 12,
   word: 20,
 };
+const PACIFIC_TIME_ZONE = "America/Los_Angeles";
+const DAILY_START_DATE = "2024-02-01";
 
 const DEFAULT_WORDS = [
   "about",
@@ -92,10 +94,11 @@ const statsModeDailyButton = document.getElementById("stats-mode-daily");
 const statsModeGrowthButton = document.getElementById("stats-mode-growth");
 const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
 const statsModeAllButton = document.getElementById("stats-mode-all");
-const modeDailyButton = document.getElementById("mode-daily");
-const modeInfiniteButton = document.getElementById("mode-infinite");
-const modeTimedButton = document.getElementById("mode-timed");
+const modeClassicButton = document.getElementById("mode-classic");
 const modeGrowthButton = document.getElementById("mode-growth");
+const modeTimedButton = document.getElementById("mode-timed");
+const cadenceDailyButton = document.getElementById("cadence-daily");
+const cadenceInfiniteButton = document.getElementById("cadence-infinite");
 const growthScoreboard = document.getElementById("growth-scoreboard");
 const growthScoreboardList = document.getElementById("growth-scoreboard-list");
 const growthScoreboardSubtitle = document.getElementById("growth-scoreboard-subtitle");
@@ -106,6 +109,9 @@ const timedScoreValue = document.getElementById("timed-score-value");
 
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
+const DAILY_CLASSIC_COOKIE = "wordgameDaily-classic";
+const DAILY_GROWTH_COOKIE = "wordgameDaily-growth";
+const DAILY_TIMED_COOKIE = "wordgameDaily-timed";
 const INFINITE_COOKIE = "wordgameInfinite";
 const GROWTH_COOKIE = "wordgameGrowth";
 const LEGACY_DUO_COOKIE = "wordgameDuo";
@@ -118,9 +124,12 @@ let currentGuess = "";
 let guesses = [];
 let gameOver = false;
 let hasRecordedResult = false;
-let currentMode = "infinite";
+let currentMode = "classic";
+let currentCadence = "infinite";
 let statsMode = "all";
 let currentDailyKey = null;
+let currentDailyGameNumber = null;
+let currentDailyCountdown = "";
 let gridBoards = [];
 let solvedBoards = [];
 let growthStageIndex = 0;
@@ -133,6 +142,9 @@ let timedWordsSolved = 0;
 let timedGuessCounts = [];
 let timedSolvedWords = [];
 let timedLetterStates = Array(WORD_LENGTH).fill("");
+let dailyCountdownIntervalId = null;
+let lastStatusMessage = "";
+let lastStatusTone = "neutral";
 let stats = {
   modes: {
     daily: {
@@ -295,8 +307,128 @@ function buildKeyboard() {
   });
 }
 
+function isDailyMode() {
+  return currentCadence === "daily";
+}
+
+function getDailyCookieName(mode = currentMode) {
+  if (mode === "growth") {
+    return DAILY_GROWTH_COOKIE;
+  }
+  if (mode === "timed") {
+    return DAILY_TIMED_COOKIE;
+  }
+  return DAILY_CLASSIC_COOKIE;
+}
+
+function getTimeZoneOffset(date, timeZone) {
+  const local = new Date(date.toLocaleString("en-US", { timeZone }));
+  return date.getTime() - local.getTime();
+}
+
+function getPacificDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: PACIFIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function getPacificDateLabel(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const safeDate = new Date(Date.UTC(year, month - 1, day, 12));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC_TIME_ZONE,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(safeDate);
+}
+
+function getNextPacificMidnight(now = new Date()) {
+  const currentOffset = getTimeZoneOffset(now, PACIFIC_TIME_ZONE);
+  const pacificNow = new Date(now.getTime() - currentOffset);
+  const nextMidnightUtc = new Date(
+    Date.UTC(
+      pacificNow.getFullYear(),
+      pacificNow.getMonth(),
+      pacificNow.getDate() + 1,
+      0,
+      0,
+      0,
+    ),
+  );
+  const nextOffset = getTimeZoneOffset(nextMidnightUtc, PACIFIC_TIME_ZONE);
+  return new Date(nextMidnightUtc.getTime() + nextOffset);
+}
+
+function formatCountdown(milliseconds) {
+  const clamped = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const seconds = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(
+    seconds,
+  ).padStart(2, "0")}`;
+}
+
+function updateDailyCountdown() {
+  if (!isDailyMode() || !currentDailyKey) {
+    currentDailyCountdown = "";
+    return;
+  }
+  const nextReset = getNextPacificMidnight();
+  currentDailyCountdown = formatCountdown(nextReset - new Date());
+  setStatus(lastStatusMessage, lastStatusTone);
+}
+
+function startDailyCountdown() {
+  if (dailyCountdownIntervalId) {
+    clearInterval(dailyCountdownIntervalId);
+  }
+  if (isDailyMode()) {
+    updateDailyCountdown();
+    dailyCountdownIntervalId = setInterval(updateDailyCountdown, 1000);
+  }
+}
+
+function stopDailyCountdown() {
+  if (dailyCountdownIntervalId) {
+    clearInterval(dailyCountdownIntervalId);
+    dailyCountdownIntervalId = null;
+  }
+}
+
+function getDailyStatusDetails() {
+  if (!currentDailyKey || currentDailyGameNumber === null) {
+    return "";
+  }
+  const dateLabel = getPacificDateLabel(currentDailyKey);
+  const countdownLabel = currentDailyCountdown
+    ? `Next word(s) in ${currentDailyCountdown}`
+    : "Next word(s) soon";
+  return `Game ${currentDailyGameNumber} • ${dateLabel} • ${countdownLabel}.`;
+}
+
+function setDailyMetadata(dateKey) {
+  currentDailyKey = dateKey;
+  currentDailyGameNumber = daysBetween(DAILY_START_DATE, dateKey) + 1;
+  updateDailyCountdown();
+}
+
+function getStatusMessage(message) {
+  if (isDailyMode()) {
+    const details = getDailyStatusDetails();
+    return details ? `${message} ${details}` : message;
+  }
+  return message;
+}
+
 function setStatus(message, tone = "neutral") {
-  statusMessage.textContent = message;
+  lastStatusMessage = message;
+  lastStatusTone = tone;
+  statusMessage.textContent = getStatusMessage(message);
   statusMessage.dataset.tone = tone;
 }
 
@@ -448,17 +580,19 @@ function loadGrowthState() {
   }
 }
 
-function saveDailyState(payload) {
-  writeCookie(DAILY_COOKIE, JSON.stringify(payload), 7);
+function saveDailyState(payload, mode = currentMode) {
+  writeCookie(getDailyCookieName(mode), JSON.stringify(payload), 7);
 }
 
-function loadDailyState() {
-  const stored = readCookie(DAILY_COOKIE);
-  if (!stored) {
+function loadDailyState(mode = currentMode) {
+  const stored = readCookie(getDailyCookieName(mode));
+  const fallback = mode === "classic" ? readCookie(DAILY_COOKIE) : null;
+  const candidate = stored || fallback;
+  if (!candidate) {
     return null;
   }
   try {
-    return JSON.parse(stored);
+    return JSON.parse(candidate);
   } catch (error) {
     return null;
   }
@@ -611,7 +745,7 @@ function updateStatsPanel() {
 }
 
 function updateNextWordButton() {
-  if (currentMode !== "infinite" && currentMode !== "growth") {
+  if (currentCadence === "daily" || currentMode === "timed") {
     newGameButton.style.display = "none";
     return;
   }
@@ -619,19 +753,35 @@ function updateNextWordButton() {
   newGameButton.style.display = gameOver ? "inline-flex" : "none";
 }
 
-function setMode(mode) {
+function setMode(mode, { skipReset = false } = {}) {
   if (currentMode === "timed" && mode !== "timed") {
     stopTimedTimer();
   }
   currentMode = mode;
-  modeDailyButton.classList.toggle("is-active", mode === "daily");
-  modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  modeClassicButton.classList.toggle("is-active", mode === "classic");
   modeTimedButton.classList.toggle("is-active", mode === "timed");
   modeGrowthButton.classList.toggle("is-active", mode === "growth");
   updateNextWordButton();
   updateGrowthScoreboard();
   showTimedHud(mode === "timed");
-  void resetGame();
+  if (!skipReset) {
+    void resetGame();
+  }
+}
+
+function setCadence(cadence, { skipReset = false } = {}) {
+  currentCadence = cadence;
+  cadenceDailyButton.classList.toggle("is-active", cadence === "daily");
+  cadenceInfiniteButton.classList.toggle("is-active", cadence === "infinite");
+  if (isDailyMode()) {
+    startDailyCountdown();
+  } else {
+    stopDailyCountdown();
+  }
+  updateNextWordButton();
+  if (!skipReset) {
+    void resetGame();
+  }
 }
 
 function hashString(value) {
@@ -677,18 +827,40 @@ async function getServerDateKey() {
     const response = await fetch(window.location.href, { method: "HEAD", cache: "no-store" });
     const serverDate = response.headers.get("date");
     if (serverDate) {
-      return new Date(serverDate).toISOString().slice(0, 10);
+      return getPacificDateKey(new Date(serverDate));
     }
   } catch (error) {
     // fall back to local time
   }
-  return new Date().toISOString().slice(0, 10);
+  return getPacificDateKey(new Date());
 }
 
-async function getDailyWord() {
+function pickDailyWords(wordBank, count, seedKey) {
+  const pool = [...wordBank];
+  const picks = [];
+  for (let i = 0; i < count; i += 1) {
+    const seed = hashString(`${seedKey}-${i}`);
+    const index = pool.length > 0 ? Math.abs(seed) % pool.length : 0;
+    const choice = pool[index] || pickWord(wordBank, seed);
+    picks.push(choice);
+    if (pool[index]) {
+      pool.splice(index, 1);
+    }
+  }
+  return picks;
+}
+
+async function getDailyWord(mode) {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
   const dateKey = await getServerDateKey();
-  const seed = hashString(dateKey);
+  const seedKey = `${dateKey}-${mode}`;
+  if (mode === "growth") {
+    return {
+      words: pickDailyWords(wordBank, getGrowthRoundWordCount(), seedKey),
+      dateKey,
+    };
+  }
+  const seed = hashString(seedKey);
   return { word: pickWord(wordBank, seed), dateKey };
 }
 
@@ -761,7 +933,15 @@ function updateGrowthScoreboard() {
 
 function startGrowthRound() {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
-  targetWords = pickUniqueWords(wordBank, getGrowthRoundWordCount());
+  if (isDailyMode() && currentDailyKey) {
+    targetWords = pickDailyWords(
+      wordBank,
+      getGrowthRoundWordCount(),
+      `${currentDailyKey}-growth-${growthStageIndex}`,
+    );
+  } else {
+    targetWords = pickUniqueWords(wordBank, getGrowthRoundWordCount());
+  }
   growthGuessLimit =
     MAX_GUESSES + growthCarryover + getGrowthRoundBonusGuesses();
   currentGuess = "";
@@ -774,16 +954,32 @@ function startGrowthRound() {
   updateGrowthScoreboard();
   setStatus(getGrowthIntroMessage(), "neutral");
   updateNextWordButton();
-  saveGrowthState({
-    mode: currentMode,
-    targetWords,
-    guesses: [],
-    completed: false,
-    growthStageIndex,
-    growthGuessLimit,
-    growthCarryover,
-    scoreboard: [...growthScoreboardRounds],
-  });
+  if (isDailyMode() && currentDailyKey) {
+    saveDailyState(
+      {
+        dateKey: currentDailyKey,
+        completed: false,
+        guesses: [],
+        targetWords,
+        growthStageIndex,
+        growthGuessLimit,
+        growthCarryover,
+        scoreboard: [...growthScoreboardRounds],
+      },
+      "growth",
+    );
+  } else {
+    saveGrowthState({
+      mode: currentMode,
+      targetWords,
+      guesses: [],
+      completed: false,
+      growthStageIndex,
+      growthGuessLimit,
+      growthCarryover,
+      scoreboard: [...growthScoreboardRounds],
+    });
+  }
 }
 
 function openStatsPanel() {
@@ -802,7 +998,8 @@ function recordGameResult(won, guessCount) {
   if (hasRecordedResult) {
     return;
   }
-  const modeStats = stats.modes[currentMode] || stats.modes.infinite;
+  const statsKey = isDailyMode() ? "daily" : currentMode === "growth" ? "growth" : "infinite";
+  const modeStats = stats.modes[statsKey] || stats.modes.infinite;
   modeStats.gamesPlayed += 1;
   if (won) {
     modeStats.wins += 1;
@@ -810,19 +1007,27 @@ function recordGameResult(won, guessCount) {
       modeStats.distribution[guessCount - 1] += 1;
     }
   }
-  if (currentMode === "daily" && currentDailyKey) {
+  if (isDailyMode() && currentDailyKey) {
     updateDailyStreaks(currentDailyKey, won);
-  } else if (currentMode === "infinite" || currentMode === "growth") {
+  } else if (currentMode === "growth" || currentMode === "classic") {
     modeStats.currentStreak = won ? modeStats.currentStreak + 1 : 0;
     modeStats.maxStreak = Math.max(modeStats.maxStreak, modeStats.currentStreak);
   }
   saveStats();
-  if (currentMode === "daily" && currentDailyKey) {
-    saveDailyState({
-      dateKey: currentDailyKey,
-      completed: true,
-      guesses: [...guesses],
-    });
+  if (isDailyMode() && currentDailyKey) {
+    saveDailyState(
+      {
+        dateKey: currentDailyKey,
+        completed: true,
+        guesses: [...guesses],
+        growthStageIndex,
+        growthGuessLimit,
+        growthCarryover,
+        scoreboard: [...growthScoreboardRounds],
+        targetWords,
+      },
+      currentMode,
+    );
   } else if (currentMode === "growth") {
     saveGrowthState({
       mode: currentMode,
@@ -834,7 +1039,7 @@ function recordGameResult(won, guessCount) {
       growthCarryover,
       scoreboard: [...growthScoreboardRounds],
     });
-  } else if (currentMode === "infinite") {
+  } else if (currentMode === "classic") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -847,9 +1052,17 @@ function recordGameResult(won, guessCount) {
   hasRecordedResult = true;
 }
 
-function startTimedWord(message, tone = "neutral") {
+function getTimedTargetWord(index) {
   const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
-  targetWords = [pickWord(wordBank)];
+  if (isDailyMode() && currentDailyKey) {
+    const seed = hashString(`${currentDailyKey}-timed-${index}`);
+    return pickWord(wordBank, seed);
+  }
+  return pickWord(wordBank);
+}
+
+function startTimedWord(message, tone = "neutral") {
+  targetWords = [getTimedTargetWord(timedWordsSolved)];
   currentGuess = "";
   guesses = [];
   gameOver = false;
@@ -884,10 +1097,9 @@ function endTimedGame(message) {
 }
 
 async function resetGame() {
-  if (currentMode === "daily") {
-    const dailyInfo = await getDailyWord();
-    targetWords = [dailyInfo.word];
-    currentDailyKey = dailyInfo.dateKey;
+  if (isDailyMode()) {
+    const dailyInfo = await getDailyWord(currentMode);
+    setDailyMetadata(dailyInfo.dateKey);
     const dailyStats = stats.modes.daily;
     if (dailyStats.lastResultDate) {
       const gap = daysBetween(dailyStats.lastResultDate, currentDailyKey);
@@ -898,8 +1110,79 @@ async function resetGame() {
         saveStats();
       }
     }
+    if (currentMode === "timed") {
+      timedSecondsRemaining = TIMED_START_SECONDS;
+      timedWordsSolved = 0;
+      timedGuessCounts = [];
+      timedSolvedWords = [];
+      updateTimedHud();
+      showTimedHud(true);
+      startTimedWord(
+        "Daily timed: solve as many words as you can before time runs out.",
+        "neutral",
+      );
+      startTimedTimer();
+      updateNextWordButton();
+      return;
+    }
+    if (currentMode === "growth") {
+      const saved = loadDailyState("growth");
+      if (saved?.dateKey === currentDailyKey && Array.isArray(saved.targetWords)) {
+        targetWords = saved.targetWords;
+      }
+      if (saved?.dateKey === currentDailyKey && Array.isArray(saved.guesses) && !saved.completed) {
+        growthStageIndex = Number.isInteger(saved.growthStageIndex) ? saved.growthStageIndex : 0;
+        growthGuessLimit = Number.isInteger(saved.growthGuessLimit)
+          ? saved.growthGuessLimit
+          : MAX_GUESSES;
+        growthCarryover = Number.isInteger(saved.growthCarryover) ? saved.growthCarryover : 0;
+        growthScoreboardRounds = Array.isArray(saved.scoreboard) ? saved.scoreboard : [];
+        guesses = [];
+        currentGuess = "";
+        gameOver = false;
+        hasRecordedResult = false;
+        solvedBoards = targetWords.map(() => false);
+        buildGrid();
+        buildKeyboard();
+        renderSavedBoard(saved.guesses);
+        updateGrowthScoreboard();
+        updateNextWordButton();
+        setStatus(getGrowthIntroMessage(), "neutral");
+        return;
+      }
+      if (saved?.dateKey === currentDailyKey && saved?.completed) {
+        buildGrid();
+        buildKeyboard();
+        renderSavedBoard(saved.guesses || []);
+        gameOver = true;
+        hasRecordedResult = true;
+        setStatus("Daily growth complete. Come back tomorrow.", "warning");
+        return;
+      }
+      growthStageIndex = 0;
+      growthScoreboardRounds = [];
+      growthCarryover = 0;
+      growthGuessLimit = MAX_GUESSES;
+      startGrowthRound();
+      return;
+    }
+    const saved = loadDailyState("classic");
+    targetWords = [dailyInfo.word];
+    if (saved?.dateKey === currentDailyKey && saved?.completed && Array.isArray(saved.guesses)) {
+      renderSavedBoard(saved.guesses);
+      gameOver = true;
+      hasRecordedResult = true;
+      setStatus("Daily complete. Come back tomorrow.", "warning");
+      return;
+    }
+    if (saved?.dateKey === currentDailyKey && Array.isArray(saved.guesses) && !saved.completed) {
+      renderSavedBoard(saved.guesses);
+      setStatus("Keep going!", "neutral");
+      return;
+    }
   } else if (currentMode === "timed") {
     currentDailyKey = null;
+    currentDailyGameNumber = null;
     timedSecondsRemaining = TIMED_START_SECONDS;
     timedWordsSolved = 0;
     timedGuessCounts = [];
@@ -971,6 +1254,7 @@ async function resetGame() {
     growthCarryover = 0;
     growthGuessLimit = MAX_GUESSES;
     currentDailyKey = null;
+    currentDailyGameNumber = null;
     targetWords = pickUniqueWords(
       ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS,
       getGrowthRoundWordCount(),
@@ -1000,6 +1284,7 @@ async function resetGame() {
     const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
     targetWords = [pickWord(wordBank)];
     currentDailyKey = null;
+    currentDailyGameNumber = null;
   }
   if (currentMode === "growth") {
     growthGuessLimit =
@@ -1014,16 +1299,18 @@ async function resetGame() {
     updateGrowthScoreboard();
     setStatus(getGrowthIntroMessage(), "neutral");
     updateNextWordButton();
-    saveGrowthState({
-      mode: currentMode,
-      targetWords,
-      guesses: [],
-      completed: false,
-      growthStageIndex,
-      growthGuessLimit,
-      growthCarryover,
-      scoreboard: [...growthScoreboardRounds],
-    });
+    if (!isDailyMode()) {
+      saveGrowthState({
+        mode: currentMode,
+        targetWords,
+        guesses: [],
+        completed: false,
+        growthStageIndex,
+        growthGuessLimit,
+        growthCarryover,
+        scoreboard: [...growthScoreboardRounds],
+      });
+    }
     return;
   }
 
@@ -1034,28 +1321,12 @@ async function resetGame() {
   solvedBoards = targetWords.map(() => false);
   updateNextWordButton();
 
-  if (currentMode === "daily") {
-    const saved = loadDailyState();
-    if (saved?.dateKey === currentDailyKey && saved?.completed && Array.isArray(saved.guesses)) {
-      renderSavedBoard(saved.guesses);
-      gameOver = true;
-      hasRecordedResult = true;
-      setStatus("Daily complete. Try infinite mode or come back tomorrow.", "warning");
-      return;
-    }
-    if (saved?.dateKey === currentDailyKey && Array.isArray(saved.guesses) && !saved.completed) {
-      renderSavedBoard(saved.guesses);
-      setStatus("Keep going!", "neutral");
-      return;
-    }
-  }
-
   buildGrid();
   buildKeyboard();
   const introMessage = "Guess the 5-letter word in six tries.";
   setStatus(introMessage);
   updateNextWordButton();
-  if (currentMode === "infinite") {
+  if (!isDailyMode() && currentMode === "classic") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -1478,12 +1749,20 @@ function submitGuess() {
     updateBoard();
     return;
   }
-  if (currentMode === "daily" && currentDailyKey) {
-    saveDailyState({
-      dateKey: currentDailyKey,
-      completed: false,
-      guesses: [...guesses],
-    });
+  if (isDailyMode() && currentDailyKey) {
+    saveDailyState(
+      {
+        dateKey: currentDailyKey,
+        completed: false,
+        guesses: [...guesses],
+        targetWords,
+        growthStageIndex,
+        growthGuessLimit,
+        growthCarryover,
+        scoreboard: [...growthScoreboardRounds],
+      },
+      currentMode,
+    );
   } else if (currentMode === "growth") {
     saveGrowthState({
       mode: currentMode,
@@ -1495,7 +1774,7 @@ function submitGuess() {
       growthCarryover,
       scoreboard: [...growthScoreboardRounds],
     });
-  } else if (currentMode === "infinite") {
+  } else if (currentMode === "classic") {
     saveInfiniteState({
       mode: currentMode,
       targetWords,
@@ -1580,13 +1859,9 @@ statsModeAllButton.addEventListener("click", () => {
   setStatsMode("all");
   statsModeAllButton.blur();
 });
-modeDailyButton.addEventListener("click", () => {
-  setMode("daily");
-  modeDailyButton.blur();
-});
-modeInfiniteButton.addEventListener("click", () => {
-  setMode("infinite");
-  modeInfiniteButton.blur();
+modeClassicButton.addEventListener("click", () => {
+  setMode("classic");
+  modeClassicButton.blur();
 });
 modeTimedButton.addEventListener("click", () => {
   setMode("timed");
@@ -1595,6 +1870,14 @@ modeTimedButton.addEventListener("click", () => {
 modeGrowthButton.addEventListener("click", () => {
   setMode("growth");
   modeGrowthButton.blur();
+});
+cadenceDailyButton.addEventListener("click", () => {
+  setCadence("daily");
+  cadenceDailyButton.blur();
+});
+cadenceInfiniteButton.addEventListener("click", () => {
+  setCadence("infinite");
+  cadenceInfiniteButton.blur();
 });
 newGameButton.addEventListener("click", () => {
   void resetGame();
@@ -1606,10 +1889,11 @@ document.addEventListener("keydown", handlePhysicalKey);
 loadStats();
 setStatsMode(statsMode);
 setStatus("Loading word lists...");
+setCadence(currentCadence, { skipReset: true });
+setMode(currentMode);
 loadWordLists().then((loaded) => {
-  setMode(currentMode);
   if (!loaded) {
-    if (!(currentMode === "daily" && gameOver)) {
+    if (!(isDailyMode() && gameOver)) {
       setStatus("Using the built-in word list. (Word list download failed.)", "warning");
     }
   }
