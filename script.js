@@ -1,5 +1,12 @@
 const WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
+const TIMED_START_SECONDS = 60;
+const TIMED_BONUS = {
+  present: 5,
+  upgrade: 5,
+  correct: 12,
+  word: 20,
+};
 
 const DEFAULT_WORDS = [
   "about",
@@ -87,10 +94,15 @@ const statsModeInfiniteButton = document.getElementById("stats-mode-infinite");
 const statsModeAllButton = document.getElementById("stats-mode-all");
 const modeDailyButton = document.getElementById("mode-daily");
 const modeInfiniteButton = document.getElementById("mode-infinite");
+const modeTimedButton = document.getElementById("mode-timed");
 const modeGrowthButton = document.getElementById("mode-growth");
 const growthScoreboard = document.getElementById("growth-scoreboard");
 const growthScoreboardList = document.getElementById("growth-scoreboard-list");
 const growthScoreboardSubtitle = document.getElementById("growth-scoreboard-subtitle");
+const timedHud = document.getElementById("timed-hud");
+const timedTimer = document.getElementById("timed-timer");
+const timedScore = document.getElementById("timed-score");
+const timedScoreValue = document.getElementById("timed-score-value");
 
 const STATS_COOKIE = "wordgameStats";
 const DAILY_COOKIE = "wordgameDaily";
@@ -115,6 +127,12 @@ let growthStageIndex = 0;
 let growthScoreboardRounds = [];
 let growthGuessLimit = MAX_GUESSES;
 let growthCarryover = 0;
+let timedSecondsRemaining = TIMED_START_SECONDS;
+let timedIntervalId = null;
+let timedWordsSolved = 0;
+let timedGuessCounts = [];
+let timedSolvedWords = [];
+let timedLetterStates = Array(WORD_LENGTH).fill("");
 let stats = {
   modes: {
     daily: {
@@ -280,6 +298,62 @@ function buildKeyboard() {
 function setStatus(message, tone = "neutral") {
   statusMessage.textContent = message;
   statusMessage.dataset.tone = tone;
+}
+
+function formatTimedValue(seconds) {
+  const clamped = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.floor(clamped / 60);
+  const remainingSeconds = clamped % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function updateTimedHud() {
+  if (!timedTimer) {
+    return;
+  }
+  timedTimer.textContent = formatTimedValue(timedSecondsRemaining);
+  if (timedScoreValue) {
+    timedScoreValue.textContent = String(timedWordsSolved);
+  }
+  if (timedScore) {
+    timedScore.hidden = timedWordsSolved === 0;
+  }
+}
+
+function showTimedHud(shouldShow) {
+  if (!timedHud) {
+    return;
+  }
+  timedHud.classList.toggle("is-visible", shouldShow);
+  if (!shouldShow && timedScore) {
+    timedScore.hidden = true;
+  }
+}
+
+function stopTimedTimer() {
+  if (timedIntervalId) {
+    clearInterval(timedIntervalId);
+    timedIntervalId = null;
+  }
+}
+
+function startTimedTimer() {
+  stopTimedTimer();
+  timedIntervalId = setInterval(() => {
+    timedSecondsRemaining = Math.max(0, timedSecondsRemaining - 1);
+    updateTimedHud();
+    if (timedSecondsRemaining <= 0) {
+      endTimedGame();
+    }
+  }, 1000);
+}
+
+function addTimedBonus(seconds) {
+  if (seconds <= 0) {
+    return;
+  }
+  timedSecondsRemaining += seconds;
+  updateTimedHud();
 }
 
 function createEmptyStats() {
@@ -546,12 +620,17 @@ function updateNextWordButton() {
 }
 
 function setMode(mode) {
+  if (currentMode === "timed" && mode !== "timed") {
+    stopTimedTimer();
+  }
   currentMode = mode;
   modeDailyButton.classList.toggle("is-active", mode === "daily");
   modeInfiniteButton.classList.toggle("is-active", mode === "infinite");
+  modeTimedButton.classList.toggle("is-active", mode === "timed");
   modeGrowthButton.classList.toggle("is-active", mode === "growth");
   updateNextWordButton();
   updateGrowthScoreboard();
+  showTimedHud(mode === "timed");
   void resetGame();
 }
 
@@ -768,6 +847,42 @@ function recordGameResult(won, guessCount) {
   hasRecordedResult = true;
 }
 
+function startTimedWord(message, tone = "neutral") {
+  const wordBank = ANSWER_WORDS.length > 0 ? ANSWER_WORDS : DEFAULT_WORDS;
+  targetWords = [pickWord(wordBank)];
+  currentGuess = "";
+  guesses = [];
+  gameOver = false;
+  hasRecordedResult = false;
+  solvedBoards = [false];
+  timedLetterStates = Array(WORD_LENGTH).fill("");
+  buildGrid();
+  buildKeyboard();
+  if (message) {
+    setStatus(message, tone);
+  } else {
+    setStatus("Keep going!", "neutral");
+  }
+}
+
+function endTimedGame(message) {
+  if (gameOver) {
+    return;
+  }
+  gameOver = true;
+  stopTimedTimer();
+  const totalGuesses = timedGuessCounts.reduce((sum, count) => sum + count, 0);
+  const averageGuesses =
+    timedWordsSolved > 0 ? (totalGuesses / timedWordsSolved).toFixed(2) : "0.00";
+  const wordsLabel = timedWordsSolved === 1 ? "word" : "words";
+  const wordsList =
+    timedSolvedWords.length > 0
+      ? `Words guessed: ${timedSolvedWords.map((word) => word.toUpperCase()).join(", ")}.`
+      : "No words guessed this round.";
+  const summary = `You solved ${timedWordsSolved} ${wordsLabel}. ${wordsList} Average guesses per word: ${averageGuesses}.`;
+  setStatus(message ? `${message} ${summary}` : `Time's up! ${summary}`, "warning");
+}
+
 async function resetGame() {
   if (currentMode === "daily") {
     const dailyInfo = await getDailyWord();
@@ -783,6 +898,18 @@ async function resetGame() {
         saveStats();
       }
     }
+  } else if (currentMode === "timed") {
+    currentDailyKey = null;
+    timedSecondsRemaining = TIMED_START_SECONDS;
+    timedWordsSolved = 0;
+    timedGuessCounts = [];
+    timedSolvedWords = [];
+    updateTimedHud();
+    showTimedHud(true);
+    startTimedWord("Timed mode: solve as many words as you can before time runs out.", "neutral");
+    startTimedTimer();
+    updateNextWordButton();
+    return;
   } else if (currentMode === "growth") {
     const saved = loadGrowthState();
     if (saved?.mode === "growth" || saved?.mode === "duo") {
@@ -1039,6 +1166,30 @@ function scoreGuess(guess, target) {
   }
 
   return result;
+}
+
+function getTimedBonus(result) {
+  return result.reduce((total, status, index) => {
+    const previous = timedLetterStates[index] || "";
+    if (status === "present") {
+      if (previous !== "present" && previous !== "correct") {
+        timedLetterStates[index] = "present";
+        return total + TIMED_BONUS.present;
+      }
+      return total;
+    }
+    if (status === "correct") {
+      if (previous === "present") {
+        timedLetterStates[index] = "correct";
+        return total + TIMED_BONUS.upgrade;
+      }
+      if (previous !== "correct") {
+        timedLetterStates[index] = "correct";
+        return total + TIMED_BONUS.correct;
+      }
+    }
+    return total;
+  }, 0);
 }
 
 function paintGuess(guess, result, rowIndex, boardIndex = 0) {
@@ -1304,6 +1455,29 @@ function submitGuess() {
     updateKeyboardSingle(currentGuess, roundResults[0]);
   }
   guesses.push(currentGuess);
+  if (currentMode === "timed") {
+    const timedBonus = getTimedBonus(roundResults[0]);
+    addTimedBonus(timedBonus);
+    const solvedWord = currentGuess === targetWords[0];
+    if (solvedWord) {
+      addTimedBonus(TIMED_BONUS.word);
+      timedWordsSolved += 1;
+      timedGuessCounts = [...timedGuessCounts, guesses.length];
+      timedSolvedWords = [...timedSolvedWords, targetWords[0]];
+      updateTimedHud();
+      startTimedWord("Great job! New word ready.", "success");
+      return;
+    }
+    if (guesses.length >= getRoundGuessLimit()) {
+      const reveal = targetWords[0].toUpperCase();
+      endTimedGame(`Out of guesses! The word was ${reveal}.`);
+      return;
+    }
+    currentGuess = "";
+    setStatus("Keep going!", "neutral");
+    updateBoard();
+    return;
+  }
   if (currentMode === "daily" && currentDailyKey) {
     saveDailyState({
       dateKey: currentDailyKey,
@@ -1413,6 +1587,10 @@ modeDailyButton.addEventListener("click", () => {
 modeInfiniteButton.addEventListener("click", () => {
   setMode("infinite");
   modeInfiniteButton.blur();
+});
+modeTimedButton.addEventListener("click", () => {
+  setMode("timed");
+  modeTimedButton.blur();
 });
 modeGrowthButton.addEventListener("click", () => {
   setMode("growth");
