@@ -865,7 +865,7 @@ function startTimedWord(message, tone = "neutral") {
   }
 }
 
-function endTimedGame() {
+function endTimedGame(message) {
   if (gameOver) {
     return;
   }
@@ -879,10 +879,8 @@ function endTimedGame() {
     timedSolvedWords.length > 0
       ? `Words guessed: ${timedSolvedWords.map((word) => word.toUpperCase()).join(", ")}.`
       : "No words guessed this round.";
-  setStatus(
-    `Time's up! You solved ${timedWordsSolved} ${wordsLabel}. ${wordsList} Average guesses per word: ${averageGuesses}.`,
-    "warning",
-  );
+  const summary = `You solved ${timedWordsSolved} ${wordsLabel}. ${wordsList} Average guesses per word: ${averageGuesses}.`;
+  setStatus(message ? `${message} ${summary}` : `Time's up! ${summary}`, "warning");
 }
 
 async function resetGame() {
@@ -1472,7 +1470,7 @@ function submitGuess() {
     }
     if (guesses.length >= getRoundGuessLimit()) {
       const reveal = targetWords[0].toUpperCase();
-      startTimedWord(`Out of guesses! The word was ${reveal}.`, "warning");
+      endTimedGame(`Out of guesses! The word was ${reveal}.`);
       return;
     }
     currentGuess = "";
